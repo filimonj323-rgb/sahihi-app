@@ -339,8 +339,8 @@
   // na ile uliyoweka kwenye generator.html (faili tofauti tuliyokupa).
   // BADILISHA neno hili kwa lako mwenyewe kabla ya kujenga APK!
   // ============================================================
-  const UNLOCK_SECRET = "Jafe@1234";
-  const WHATSAPP_NUMBER = "255623647378"; // badilisha na namba yako (bila +, bila sifuri la mwanzo)
+  const UNLOCK_SECRET = "BADILISHA-HII-KUWA-SIRI-YAKO-2026";
+  const WHATSAPP_NUMBER = "255700000000"; // badilisha na namba yako (bila +, bila sifuri la mwanzo)
   const DAY_MS = 86400000;
 
   function fnv1a(str){
@@ -429,8 +429,8 @@
   // KUANGALIA TOLEO JIPYA — jaribio la mtandaoni tu; likishindwa
   // (hakuna internet) halitoi tatizo lolote, app inaendelea offline.
   // ============================================================
-  const APP_VERSION = "1.0.0"; // BADILISHA namba hii kila ukitoa toleo jipya la app
-  const VERSION_CHECK_URL = "https://raw.githubusercontent.com/filimonj323-rgb/sahihi-app/main/version.json"; // badilisha
+  const APP_VERSION = "1.0.1"; // BADILISHA namba hii kila ukitoa toleo jipya la app
+  const VERSION_CHECK_URL = "https://raw.githubusercontent.com/JINA-LAKO-GITHUB/sahihi-app/main/version.json"; // badilisha
 
   function isNewerVersion(remote, local){
     const a = String(remote).split('.').map(Number);
@@ -1094,17 +1094,49 @@
       });
 
       const outBytes = await pdfLibDoc.save();
-      const blob = new Blob([outBytes], { type:'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'imesainiwa.pdf';
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
-      $('downloadStatus').innerHTML = '<div class="hint" style="background:var(--good-soft);border-color:#BEDBC9;color:var(--good);">✅ PDF imepakuliwa.</div>';
+      await deliverPdf(outBytes, 'imesainiwa-' + Date.now() + '.pdf');
+      $('downloadStatus').innerHTML = '<div class="hint" style="background:var(--good-soft);border-color:#BEDBC9;color:var(--good);">✅ PDF iko tayari.</div>';
     } catch (err){
       $('downloadStatus').innerHTML = '<div class="hint err">Imeshindwa: '+err.message+'</div>';
     }
   });
+
+  // Kwenye app ya Android (Capacitor), <a download> ya kivinjari haifanyi kazi
+  // ndani ya WebView — hivyo tunatumia Filesystem+Share za Capacitor kuhifadhi
+  // faili kisha kufungua "Share" ya Android (mtumiaji anachagua Save/WhatsApp/Drive).
+  // Kwenye kivinjari cha kawaida (siyo app), inarudi kwenye njia ya zamani.
+  async function deliverPdf(bytes, filename){
+    const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+    const plugins = window.Capacitor && window.Capacitor.Plugins;
+    if (isNative && plugins && plugins.Filesystem){
+      let binary = '';
+      const chunk = 8192;
+      for (let i=0; i<bytes.length; i+=chunk){
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+      }
+      const base64 = btoa(binary);
+      const written = await plugins.Filesystem.writeFile({
+        path: filename,
+        data: base64,
+        directory: 'CACHE'
+      });
+      if (plugins.Share){
+        await plugins.Share.share({
+          title: 'PDF Iliyosainiwa',
+          text: 'PDF iliyosainiwa kwa app ya Sahihi',
+          url: written.uri
+        });
+      }
+      return;
+    }
+    // Kivinjari cha kawaida (siyo app ya Android)
+    const blob = new Blob([bytes], { type:'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
 
 })();
 </script>
