@@ -1,0 +1,9 @@
+{
+  "appId": "com.rusimbamanga.sahihi",
+  "appName": "Sahihi kwenye PDF",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": true
+  }
+}
