@@ -24,7 +24,16 @@
     --radius:10px;
   }
   * { box-sizing: border-box; }
-  html,body{ margin:0; padding:0; }
+  html,body{ margin:0; padding:0; overscroll-behavior-y:contain; }
+  /* Kiashiria cha "vuta chini ili u-refresh" */
+  #ptr{
+    position:fixed; top:0; left:50%; transform:translate(-50%,-60px); z-index:1100;
+    background:var(--panel); border:1px solid var(--paper-line); border-radius:999px;
+    padding:8px 16px; box-shadow:0 2px 8px rgba(0,0,0,.12); display:flex; gap:8px; align-items:center;
+    font-size:13px; color:var(--pen-dark); opacity:0; pointer-events:none;
+  }
+  #ptr.animate{ transition:transform .2s, opacity .2s; }
+  #ptr .ptr-arrow{ display:inline-block; transition:transform .2s; font-weight:700; }
   body{
     font-family:'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
     color:var(--ink);
@@ -320,7 +329,7 @@
             <button class="btn ghost" id="btnBackTo2">← Rudi</button>
             <div class="place-toolbar-title">
               <h2>Weka sahihi kwenye ukurasa</h2>
-              <p class="sub">Buruta sahihi mahali unapoitaka, tumia pembe kuipima ukubwa, na tumia kitufe cha kuzungusha (mduara wa bluu wenye mshale) juu ya sahihi kuizungusha kama imepinda.</p>
+              <p class="sub">Buruta sahihi mahali unapoitaka, tumia pembe kuipima ukubwa, na tumia kitufe cha kuzungusha (mduara wa bluu wenye mshale) juu ya sahihi kuizungusha kama imepinda. Gusa nje ya sahihi kuficha fremu; gusa sahihi tena kuirudisha.</p>
             </div>
             <div class="btn-row">
               <button class="btn ghost" id="btnStraighten">⟲ Nyoosha</button>
@@ -559,6 +568,8 @@
       this.aspect = opts.aspect || 1;
       this.rotatable = !!opts.rotatable;
       this.edgeHandles = !!opts.edgeHandles && !this.maintainAspect;
+      this.autoHideFrame = !!opts.autoHideFrame; // gusa nje = ficha fremu, gusa sahihi = irudishe
+      this.frameVisible = true;
       this.onChange = opts.onChange || function(){};
       this.dragMode = null;
       this.rotSide = -1; // -1 = kitufe cha kuzungusha juu ya sanduku, 1 = chini
@@ -659,11 +670,13 @@
       return p.x>=x && p.x<=x+w && p.y>=y && p.y<=y+h;
     }
     _hitAny(p){
+      if (!this.frameVisible) return this._inside(p);
       return this._hitRotateHandle(p) || !!this._hitHandle(p) || !!this._hitEdge(p) || this._inside(p);
     }
     _hoverOrMove(e){
       if (this.dragMode) return;
       const p = this._pos(e), st = this.canvas.style;
+      if (!this.frameVisible){ st.cursor = this._inside(p) ? 'pointer' : 'default'; return; }
       if (this._hitRotateHandle(p)){ st.cursor = 'grab'; return; }
       const h = this._hitHandle(p);
       if (h){ st.cursor = (h==='nw'||h==='se') ? 'nwse-resize' : 'nesw-resize'; return; }
@@ -673,6 +686,17 @@
     }
     _down(e){
       const p = this._pos(e);
+      if (!this.frameVisible){
+        if (!this._inside(p)) return; // fremu imefichwa: gusa nje hakubadilishi kitu
+        this.frameVisible = true;     // gusa sahihi = rudisha fremu (na uweze kuiburuta mara moja)
+        this.dragMode = 'move';
+        this.dragStart = p;
+        this.rectStart = Object.assign({}, this.rect);
+        this.draw();
+        try { this.canvas.setPointerCapture(e.pointerId); } catch(_){}
+        e.preventDefault();
+        return;
+      }
       if (this._hitRotateHandle(p)){
         this.dragMode = 'rotate';
         this.rotSide = this._pickRotSide();
@@ -696,6 +720,10 @@
           this.dragMode = 'move';
           this.dragStart = p;
           this.rectStart = Object.assign({}, this.rect);
+        } else if (this.autoHideFrame){
+          this.frameVisible = false; // gusa nje ya sahihi = ficha fremu
+          this.draw();
+          return;
         } else if (e.pointerType !== 'touch'){
           // panya/kalamu: anza sanduku jipya kutoka mahali alipobonyeza
           this.dragMode = 'resize';
@@ -785,6 +813,7 @@
       ctx.rotate(rotation);
       ctx.translate(-cx,-cy);
       if (this.overlayDraw) this.overlayDraw(ctx, this.rect);
+      if (!this.frameVisible){ ctx.restore(); return; }
       // fremu nene: mstari mweupe nje + bluu ndani ili ionekane kwenye picha yoyote
       ctx.lineJoin = 'round';
       ctx.strokeStyle = '#fff'; ctx.lineWidth = (this.frameWidth+2)*k; ctx.strokeRect(x,y,w,h);
@@ -855,6 +884,102 @@
     return gray;
   }
 
+  // Makadirio ya mwanga wa "karatasi" kila mahali kwenye picha (kivuli, giza upande mmoja n.k.):
+  // kwa kila kisanduku kidogo tunachukua asilimia ya 90 ya mng'ao (karatasi, si wino), kisha tunalainisha.
+  function estimateBackground(g, w, h){
+    const B = Math.max(16, Math.round(Math.min(w,h)/6));
+    const gx = Math.ceil(w/B), gy = Math.ceil(h/B);
+    let grid = new Float32Array(gx*gy);
+    const hist = new Uint32Array(256);
+    for (let by=0; by<gy; by++){
+      for (let bx=0; bx<gx; bx++){
+        hist.fill(0);
+        const x0=bx*B, x1=Math.min(w,x0+B), y0=by*B, y1=Math.min(h,y0+B);
+        let cnt = 0;
+        for (let y=y0; y<y1; y++){
+          for (let x=x0, i=y*w+x0; x<x1; x++, i++){ hist[g[i]|0]++; cnt++; }
+        }
+        let acc = 0, v = 255; const target = cnt*0.9;
+        for (let t=0; t<256; t++){ acc += hist[t]; if (acc >= target){ v = t; break; } }
+        grid[by*gx+bx] = Math.max(v, 40);
+      }
+    }
+    for (let pass=0; pass<2; pass++){
+      const t = new Float32Array(grid.length);
+      for (let y=0; y<gy; y++){
+        for (let x=0; x<gx; x++){
+          let sum=0, c=0;
+          for (let dy=-1; dy<=1; dy++){
+            const yy=y+dy; if (yy<0 || yy>=gy) continue;
+            for (let dx=-1; dx<=1; dx++){
+              const xx=x+dx; if (xx<0 || xx>=gx) continue;
+              sum += grid[yy*gx+xx]; c++;
+            }
+          }
+          t[y*gx+x] = sum/c;
+        }
+      }
+      grid = t;
+    }
+    const bg = new Float32Array(w*h);
+    const gxm = gx-1, gym = gy-1;
+    for (let y=0; y<h; y++){
+      const fy = clamp((y+0.5)/B-0.5, 0, gym), y0 = Math.floor(fy), y1 = Math.min(y0+1, gym), ty = fy-y0;
+      for (let x=0; x<w; x++){
+        const fx = clamp((x+0.5)/B-0.5, 0, gxm), x0 = Math.floor(fx), x1 = Math.min(x0+1, gxm), tx = fx-x0;
+        const top = grid[y0*gx+x0]*(1-tx) + grid[y0*gx+x1]*tx;
+        const bot = grid[y1*gx+x0]*(1-tx) + grid[y1*gx+x1]*tx;
+        bg[y*w+x] = top*(1-ty) + bot*ty;
+      }
+    }
+    return bg;
+  }
+  // Picha ya kijivu iliyosawazishwa: karatasi ≈ 255 kila mahali (hata kwenye kivuli), wino ni giza.
+  function flatField(imgData){
+    const {data,width:w,height:h} = imgData;
+    const g = new Float32Array(w*h);
+    for (let i=0,p=0; i<data.length; i+=4,p++) g[p] = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+    const bg = estimateBackground(g, w, h);
+    const n = new Float32Array(w*h);
+    for (let p=0; p<n.length; p++) n[p] = Math.min(255, g[p]*255/bg[p]);
+    return { n, bg };
+  }
+  function boxBlur3(a, w, h){
+    const t = new Float32Array(a.length);
+    for (let y=0; y<h; y++){
+      const r = y*w;
+      for (let x=0; x<w; x++){
+        const l = x>0 ? a[r+x-1] : a[r+x], rr = x<w-1 ? a[r+x+1] : a[r+x];
+        t[r+x] = (l + a[r+x] + rr)/3;
+      }
+    }
+    for (let y=0; y<h; y++){
+      const up = y>0 ? y-1 : y, dn = y<h-1 ? y+1 : y;
+      for (let x=0; x<w; x++) a[y*w+x] = (t[up*w+x] + t[y*w+x] + t[dn*w+x])/3;
+    }
+  }
+  // Ondoa vidoti/vumbi vidogo vilivyojitenga (si sehemu ya sahihi)
+  function removeSpecks(data, w, h, minCount){
+    const N = w*h, seen = new Uint8Array(N), queue = new Int32Array(N);
+    for (let s0=0; s0<N; s0++){
+      if (seen[s0] || data[s0*4+3] < 32) continue;
+      let head = 0, tail = 0;
+      queue[tail++] = s0; seen[s0] = 1;
+      while (head < tail){
+        const cur = queue[head++], cx = cur % w, cy = (cur-cx)/w;
+        for (let dy=-1; dy<=1; dy++){
+          const yy = cy+dy; if (yy<0 || yy>=h) continue;
+          for (let dx=-1; dx<=1; dx++){
+            const xx = cx+dx; if (xx<0 || xx>=w) continue;
+            const ni = yy*w+xx;
+            if (!seen[ni] && data[ni*4+3] >= 32){ seen[ni] = 1; queue[tail++] = ni; }
+          }
+        }
+      }
+      if (tail < minCount){ for (let k=0; k<tail; k++) data[queue[k]*4+3] = 0; }
+    }
+  }
+
   // Hupata sanduku bora la "ink" kwenye picha nzima (kadirio la eneo la sahihi)
   function detectSignatureBox(img){
     const gridW = 300;
@@ -864,7 +989,7 @@
     const octx = off.getContext('2d');
     octx.drawImage(img, 0,0, gridW, gridH);
     const imgData = octx.getImageData(0,0,gridW,gridH);
-    const gray = grayscaleNormalized(imgData);
+    const gray = flatField(imgData).n; // mwanga umesawazishwa (kivuli hakidanganyi)
     const threshold = otsuThreshold(gray) - 15; // punguza kidogo, chukua ink tu
 
     const visited = new Uint8Array(gridW*gridH);
@@ -1034,31 +1159,37 @@
   function extractSignature(){
     const r = currentCropRectImg();
     const sx = Math.round(r.x), sy = Math.round(r.y);
-    const sw = Math.max(1, Math.round(r.w)), sh = Math.max(1, Math.round(r.h));
+    const srcW = Math.max(1, Math.round(r.w)), srcH = Math.max(1, Math.round(r.h));
+    // Sahihi haihitaji pixel nyingi: ipunguze hadi upande mrefu 1600px (haraka zaidi, PDF nyepesi)
+    const outScale = Math.min(1, 1600/Math.max(srcW, srcH));
+    const sw = Math.max(1, Math.round(srcW*outScale)), sh = Math.max(1, Math.round(srcH*outScale));
 
     const crop = document.createElement('canvas');
     crop.width = sw; crop.height = sh;
-    const cctx = crop.getContext('2d');
-    cctx.drawImage(originalImage, sx,sy,sw,sh, 0,0, sw,sh);
+    const cctx = crop.getContext('2d', { willReadFrequently:true });
+    cctx.drawImage(originalImage, sx,sy,srcW,srcH, 0,0, sw,sh);
 
     const imgData = cctx.getImageData(0,0,sw,sh);
     const data = imgData.data;
-    const gray = grayscaleNormalized(imgData);
+    // Sawazisha mwanga (ondoa kivuli/giza) kabla ya kuamua nini ni wino na nini ni karatasi
+    const { n, bg } = flatField(imgData);
+    boxBlur3(n, sw, sh); // punguza chembechembe za kelele za picha ya giza
     const offset = Number($('thresholdSlider').value);
-    const threshold = clamp(otsuThreshold(gray) + offset, 5, 250);
+    const threshold = clamp(otsuThreshold(n) + offset, 40, 240);
     const forceBlack = $('forceBlack').checked;
-    const soft = 45; // upana wa ukingo laini (anti-alias) kwa pixel za mpakani
+    const soft = clamp(threshold*0.35, 20, 50); // upana wa ukingo laini (anti-alias)
 
     for (let i=0,p=0; i<data.length; i+=4,p++){
-      const v = gray[p];
-      if (v >= threshold){
-        data[i+3] = 0;
-      } else {
-        const alpha = clamp(mapRange(v, threshold, threshold-soft, 0, 255), 0, 255);
-        data[i+3] = alpha;
-        if (forceBlack){ data[i]=18; data[i+1]=20; data[i+2]=26; }
+      const v = n[p];
+      if (v >= threshold){ data[i+3] = 0; continue; }
+      data[i+3] = clamp(mapRange(v, threshold, threshold-soft, 0, 255), 0, 255);
+      if (forceBlack){ data[i]=18; data[i+1]=20; data[i+2]=26; }
+      else {
+        const f = 255/bg[p]; // rudisha rangi ya kalamu kwenye mwanga wa kawaida
+        data[i] = Math.min(255, data[i]*f); data[i+1] = Math.min(255, data[i+1]*f); data[i+2] = Math.min(255, data[i+2]*f);
       }
     }
+    removeSpecks(data, sw, sh, Math.max(6, Math.round(sw*sh*0.00003)));
     cctx.putImageData(imgData,0,0);
 
     extractedCanvas = crop;
@@ -1194,7 +1325,7 @@
 
     if (placeEditor) placeEditor.destroy();
     placeEditor = new RectEditor(canvas, drawBg, {
-      initialRect, dimOutside:false, overlayDraw, maintainAspect:true, aspect, rotatable:true
+      initialRect, dimOutside:false, overlayDraw, maintainAspect:true, aspect, rotatable:true, autoHideFrame:true
     });
     placeEditor.draw();
   }
@@ -1202,6 +1333,7 @@
   $('btnStraighten').addEventListener('click', ()=>{
     if (!placeEditor) return;
     placeEditor.rect.rotation = 0;
+    placeEditor.frameVisible = true;
     placeEditor.draw();
   });
 
@@ -1294,6 +1426,70 @@
     URL.revokeObjectURL(url);
   }
 
+
+  // ============================================================
+  // VUTA CHINI ILI U-REFRESH (kama website) — inapakia ukurasa upya
+  // ili uweze kuanza na picha mpya. Haifanyi kazi kwenye hatua ya 3
+  // (ili usipoteze kazi ya kuweka sahihi kwa bahati mbaya).
+  // ============================================================
+  (function initPullToRefresh(){
+    const ind = document.createElement('div');
+    ind.id = 'ptr';
+    ind.innerHTML = '<span class="ptr-arrow">↓</span><span class="ptr-text"></span>';
+    document.body.appendChild(ind);
+    const arrow = ind.querySelector('.ptr-arrow'), txt = ind.querySelector('.ptr-text');
+    const THRESHOLD = 70;
+    let startY = 0, startX = 0, tracking = false, pulling = false, dist = 0;
+    const scrollTop = () => (document.scrollingElement || document.documentElement).scrollTop;
+    const blocked = (t) => {
+      if ($('step3').classList.contains('active')) return true;
+      if (getComputedStyle($('lockGate')).display !== 'none') return true;
+      return !!(t && t.closest && t.closest('canvas, input[type=range]'));
+    };
+    function show(d){
+      const ready = d >= THRESHOLD;
+      ind.style.transform = 'translate(-50%,' + (Math.min(d,90)-56) + 'px)';
+      ind.style.opacity = String(Math.min(1, d/THRESHOLD));
+      arrow.style.transform = ready ? 'rotate(180deg)' : 'rotate(0deg)';
+      txt.textContent = ready ? 'Achia ili u-refresh' : 'Vuta chini ili u-refresh';
+    }
+    function reset(){
+      ind.classList.add('animate');
+      ind.style.transform = 'translate(-50%,-60px)';
+      ind.style.opacity = '0';
+      tracking = false; pulling = false; dist = 0;
+    }
+    document.addEventListener('touchstart', (e)=>{
+      tracking = false; pulling = false; dist = 0;
+      if (e.defaultPrevented || e.touches.length !== 1 || blocked(e.target) || scrollTop() > 0) return;
+      tracking = true;
+      startY = e.touches[0].clientY; startX = e.touches[0].clientX;
+      ind.classList.remove('animate');
+    }, {passive:true});
+    document.addEventListener('touchmove', (e)=>{
+      if (!tracking) return;
+      const t = e.touches[0], dy = t.clientY - startY, dx = t.clientX - startX;
+      if (!pulling){
+        if (dy > 10 && dy > Math.abs(dx)*1.5 && scrollTop() <= 0) pulling = true;
+        else { if (dy < -5) tracking = false; return; }
+      }
+      if (e.cancelable) e.preventDefault();
+      dist = Math.min(Math.max(0, dy)*0.5, 120);
+      show(dist);
+    }, {passive:false});
+    document.addEventListener('touchend', ()=>{
+      if (!tracking || !pulling){ tracking = false; return; }
+      if (dist >= THRESHOLD){
+        ind.classList.add('animate');
+        ind.style.transform = 'translate(-50%,16px)';
+        ind.style.opacity = '1';
+        arrow.textContent = '⟳';
+        txt.textContent = 'Inapakia upya...';
+        setTimeout(()=> location.reload(), 150);
+      } else reset();
+    }, {passive:true});
+    document.addEventListener('touchcancel', reset, {passive:true});
+  })();
 })();
 </script>
 </body>
