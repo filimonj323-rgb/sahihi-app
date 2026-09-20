@@ -97,7 +97,12 @@
     display:inline-block; max-width:100%; line-height:0; background:
       repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 16px 16px;
   }
-  canvas{ display:block; max-width:100%; height:auto; touch-action:none; }
+  canvas{ display:block; max-width:100%; height:auto; touch-action:auto; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  /* Preview ndogo, katikati ya ukurasa, na nafasi pembeni ili ku-scroll iwe rahisi */
+  .crop-stage, .preview-stage{ display:flex; justify-content:center; padding:22px 0; }
+  .crop-stage .canvas-frame, .preview-stage .canvas-frame{ display:block; }
+  .preview-stage canvas{ width:auto; height:auto; max-width:min(80vw,380px); max-height:200px; }
+  .crop-tools{ display:flex; justify-content:center; margin-bottom:2px; }
 
   .field{ margin:16px 0; }
   .field label{ display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px; }
@@ -149,6 +154,15 @@
     font-size:12.5px; color:var(--ink-soft); margin:14px 0 12px; border-top:1px solid var(--paper-line);
     padding-top:16px;
   }
+  .plans{ margin:0 0 14px; text-align:left; }
+  .plans-hint{ font-size:12.5px; color:var(--ink-soft); text-align:center; margin:0 0 10px; }
+  .plan-row{
+    display:flex; justify-content:space-between; align-items:center; width:100%;
+    padding:12px 14px; margin-bottom:8px; border:1px solid var(--paper-line); border-radius:var(--radius);
+    background:var(--paper); font:inherit; font-size:14.5px; color:var(--ink); cursor:pointer; text-align:left;
+  }
+  .plan-row:hover, .plan-row:active{ border-color:var(--pen); background:var(--pen-soft); }
+  .plan-row .plan-price{ font-weight:700; color:var(--pen-dark); }
   #unlockCodeInput{
     width:100%; box-sizing:border-box; padding:11px 12px; border-radius:var(--radius);
     border:1px solid var(--paper-line); font-size:15px; text-align:center; letter-spacing:1px;
@@ -209,7 +223,9 @@
   <div class="lock-card">
     <h1>Sahihi</h1>
     <p class="sub">Chomoa sahihi kutoka kwenye picha ya karatasi na uiweke moja kwa moja kwenye PDF — bila kuchapisha, kusaini kwa mkono, na kupiga scan tena.</p>
-    <div class="lock-price">Malipo: <strong>Tsh 5,000</strong><br/>(mara moja tu — matumizi ya milele, hata bila internet)</div>
+    <div class="lock-price">Chagua mpango wa malipo unaokufaa.<br/>(Ukishalipa, kodi yako inafanya kazi hata bila internet)</div>
+    <button class="btn ghost" id="btnShowPlans" type="button">📋 Ona Mipango ya Malipo</button>
+    <div class="plans" id="plansList" style="display:none;"></div>
     <button class="btn primary" id="btnPayWhatsapp">💬 Lipa / Uliza kupitia WhatsApp</button>
     <div class="lock-divider">Tayari umelipa na kupewa kodi?</div>
     <input type="text" id="unlockCodeInput" placeholder="MFANO: MARIA1-9F3A-2B7C" autocapitalize="characters" autocomplete="off" inputmode="text" />
@@ -253,8 +269,9 @@
           </div>
 
           <div id="s1-crop" style="display:none;">
-            <p class="sub" style="margin-top:-8px;">Boksi la bluu ni kadirio letu la eneo la sahihi — buruta pembe zake au katikati yake mpaka lifunike sahihi tu (si maandishi mengine ya karatasi).</p>
-            <div class="canvas-frame"><canvas id="cropCanvas"></canvas></div>
+            <p class="sub" style="margin-top:-8px;">Boksi la bluu ni kadirio letu la eneo la sahihi — buruta pembe, pande zake au katikati yake mpaka lifunike sahihi tu (si maandishi mengine ya karatasi). Gusa nje ya boksi ili u-scroll ukurasa.</p>
+            <div class="crop-tools"><button class="btn ghost" id="btnToggleView" type="button">🔍 Onyesha karatasi nzima</button></div>
+            <div class="crop-stage"><div class="canvas-frame"><canvas id="cropCanvas"></canvas></div></div>
             <div class="field">
               <label>Ukali wa kuondoa background (kama sahihi haionekani vizuri, sogeza)</label>
               <input type="range" id="thresholdSlider" min="-60" max="60" value="0" />
@@ -268,7 +285,7 @@
 
           <div id="s1-preview" style="display:none;">
             <p class="sub" style="margin-top:-8px;">Hivi ndivyo sahihi itakavyoonekana ikiwekwa kwenye PDF (background imeondolewa).</p>
-            <div class="canvas-frame"><canvas id="previewCanvas"></canvas></div>
+            <div class="preview-stage"><div class="canvas-frame"><canvas id="previewCanvas"></canvas></div></div>
             <div class="btn-row">
               <button class="btn ghost" id="btnRedoCrop">↺ Rekebisha eneo tena</button>
               <button class="btn primary" id="btnUseSignature">Tumia Sahihi Hii →</button>
@@ -303,7 +320,7 @@
             <button class="btn ghost" id="btnBackTo2">← Rudi</button>
             <div class="place-toolbar-title">
               <h2>Weka sahihi kwenye ukurasa</h2>
-              <p class="sub">Buruta sahihi mahali unapoitaka, tumia pembe kuipima ukubwa, na tumia kitovu cha juu (⟲) kuizungusha kama imepinda.</p>
+              <p class="sub">Buruta sahihi mahali unapoitaka, tumia pembe kuipima ukubwa, na tumia kitufe cha kuzungusha (mduara wa bluu wenye mshale) juu ya sahihi kuizungusha kama imepinda.</p>
             </div>
             <div class="btn-row">
               <button class="btn ghost" id="btnStraighten">⟲ Nyoosha</button>
@@ -341,6 +358,14 @@
   // ============================================================
   const UNLOCK_SECRET = "Jafe@1234";
   const WHATSAPP_NUMBER = "255623647378"; // badilisha na namba yako (bila +, bila sifuri la mwanzo)
+  // MIPANGO YA MALIPO — badilisha bei/muda hapa tu (Tsh). Orodha kwenye skrini inajijenga yenyewe.
+  const PLANS = [
+    { label:'Wiki 1',    price:5000  },
+    { label:'Miezi 2',   price:15000 },
+    { label:'Miezi 3',   price:20000 },
+    { label:'Miezi 6',   price:30000 },
+    { label:'Mwaka mzima', price:50000 }
+  ];
   const DAY_MS = 86400000;
 
   function fnv1a(str){
@@ -398,9 +423,27 @@
   }
   function initLockGate(){
     if (checkExpiryAndMaybeLock()) showGate(false);
+    const openWhatsApp = (text)=> window.open('https://wa.me/'+WHATSAPP_NUMBER+'?text='+encodeURIComponent(text), '_blank');
+    const fmtTsh = (n)=> 'Tsh ' + n.toLocaleString('en-US');
+    const list = $('plansList');
+    list.innerHTML = '<p class="plans-hint">Gusa mpango unaoutaka ili kuulipia kupitia WhatsApp.</p>';
+    PLANS.forEach((pl)=>{
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'plan-row';
+      row.innerHTML = '<span>' + pl.label + '</span><span class="plan-price">' + fmtTsh(pl.price) + '</span>';
+      row.addEventListener('click', ()=>{
+        openWhatsApp('Habari, nataka kulipia mpango wa ' + pl.label + ' (' + fmtTsh(pl.price) + ') wa app ya Sahihi.');
+      });
+      list.appendChild(row);
+    });
+    $('btnShowPlans').addEventListener('click', ()=>{
+      const open = list.style.display === 'none';
+      list.style.display = open ? 'block' : 'none';
+      $('btnShowPlans').textContent = open ? '▲ Ficha Mipango ya Malipo' : '📋 Ona Mipango ya Malipo';
+    });
     $('btnPayWhatsapp').addEventListener('click', ()=>{
-      const msg = encodeURIComponent("Habari, nataka kulipia/kuongeza muda wa app ya Sahihi.");
-      window.open('https://wa.me/'+WHATSAPP_NUMBER+'?text='+msg, '_blank');
+      openWhatsApp("Habari, nataka kulipia/kuongeza muda wa app ya Sahihi.");
     });
     $('btnUnlock').addEventListener('click', ()=>{
       const val = $('unlockCodeInput').value;
@@ -505,112 +548,166 @@
       this.drawBackground = drawBackground;
       this.rect = Object.assign({rotation:0}, opts.initialRect || {x:20,y:20,w:100,h:60});
       this.minSize = opts.minSize || 24;
-      this.handleSize = opts.handleSize || 14;
+      // Vipimo vifuatavyo viko kwa CSS px (vinavyoonekana kwenye skrini), si pixel za canvas,
+      // ili vishikio vibaki vikubwa vya kutosha hata canvas ikipunguzwa na CSS.
+      this.handleSize = opts.handleSize || 20;
+      this.frameWidth = opts.frameWidth || 4;
+      this.rotateHandleOffset = opts.rotateHandleOffset || 46;
       this.dimOutside = opts.dimOutside !== false;
       this.overlayDraw = opts.overlayDraw || null; // (ctx, rect) => void
       this.maintainAspect = !!opts.maintainAspect;
       this.aspect = opts.aspect || 1;
       this.rotatable = !!opts.rotatable;
-      this.rotateHandleOffset = opts.rotateHandleOffset || 34;
+      this.edgeHandles = !!opts.edgeHandles && !this.maintainAspect;
       this.onChange = opts.onChange || function(){};
       this.dragMode = null;
+      this.rotSide = -1; // -1 = kitufe cha kuzungusha juu ya sanduku, 1 = chini
+      this._ac = new AbortController();
       this._bind();
     }
+    destroy(){ this._ac.abort(); }
+    // pixel za canvas kwa kila CSS px (canvas huonyeshwa ndogo/kubwa kuliko ukubwa wake halisi)
+    _k(){
+      const r = this.canvas.getBoundingClientRect();
+      return r.width > 0 ? this.canvas.width / r.width : 1;
+    }
     _bind(){
-      const c = this.canvas;
+      const c = this.canvas, signal = this._ac.signal;
       c.style.cursor = 'move';
-      c.addEventListener('pointerdown', (e)=>this._down(e));
-      c.addEventListener('pointermove', (e)=>this._hoverOrMove(e));
-      window.addEventListener('pointermove', (e)=>this._move(e));
-      window.addEventListener('pointerup', (e)=>this._up(e));
+      c.addEventListener('pointerdown', (e)=>this._down(e), {signal});
+      c.addEventListener('pointermove', (e)=>this._hoverOrMove(e), {signal});
+      window.addEventListener('pointermove', (e)=>this._move(e), {signal});
+      window.addEventListener('pointerup', ()=>this._up(), {signal});
+      window.addEventListener('pointercancel', ()=>this._up(), {signal});
+      window.addEventListener('resize', ()=>this.draw(), {signal});
+      // Simu: kugusa fremu/vishikio = kuburuta; kugusa nje = ku-scroll ukurasa kama kawaida.
+      c.addEventListener('touchstart', (e)=>{
+        const t = e.touches[0];
+        if (t && this._hitAny(this._pos(t))) e.preventDefault();
+      }, {passive:false, signal});
+      c.addEventListener('touchmove', (e)=>{ if (this.dragMode) e.preventDefault(); }, {passive:false, signal});
     }
     _pos(e){
       const r = this.canvas.getBoundingClientRect();
-      const scaleX = this.canvas.width / r.width;
-      const scaleY = this.canvas.height / r.height;
-      return { x:(e.clientX-r.left)*scaleX, y:(e.clientY-r.top)*scaleY };
+      return { x:(e.clientX-r.left)*(this.canvas.width/r.width), y:(e.clientY-r.top)*(this.canvas.height/r.height) };
     }
-    // Hugeuza sehemu ya kubonyeza (katika nafasi ya kawaida ya canvas) kuwa
-    // sehemu yake "kabla ya rotation" — yaani kama box haikuwa imezungushwa.
-    // Hii inaruhusu mantiki ya zamani ya resize/inside kufanya kazi bila
-    // kubadilishwa, kwa sababu inalinganisha na x,y,w,h zisizozungushwa.
-    _toUnrotated(p, rect){
-      const rotation = rect.rotation || 0;
-      if (!rotation) return p;
-      const cx = rect.x + rect.w/2, cy = rect.y + rect.h/2;
-      const dx = p.x-cx, dy = p.y-cy;
-      const cos = Math.cos(-rotation), sin = Math.sin(-rotation);
-      return { x: cx + dx*cos - dy*sin, y: cy + dx*sin + dy*cos };
+    _rot(p, c, a){
+      const cos = Math.cos(a), sin = Math.sin(a), dx = p.x-c.x, dy = p.y-c.y;
+      return { x: c.x + dx*cos - dy*sin, y: c.y + dx*sin + dy*cos };
     }
+    _center(rect){ rect = rect || this.rect; return { x: rect.x+rect.w/2, y: rect.y+rect.h/2 }; }
+    // sehemu ya skrini -> sehemu kwenye sanduku "lisilozungushwa"
+    _toUnrotated(p){ const a = this.rect.rotation || 0; return a ? this._rot(p, this._center(), -a) : p; }
+    // sehemu kwenye sanduku lisilozungushwa -> sehemu halisi ya skrini
+    _toScreen(p, rect){ rect = rect || this.rect; const a = rect.rotation || 0; return a ? this._rot(p, this._center(rect), a) : p; }
     _corners(rect){
-      rect = rect || this.rect;
-      const {x,y,w,h} = rect;
+      const {x,y,w,h} = rect || this.rect;
       return { nw:{x:x,y:y}, ne:{x:x+w,y:y}, sw:{x:x,y:y+h}, se:{x:x+w,y:y+h} };
     }
-    _rotateHandlePos(rect){
-      rect = rect || this.rect;
-      return { x: rect.x+rect.w/2, y: rect.y - this.rotateHandleOffset };
+    // ----- kitufe cha kuzungusha -----
+    _rotateHandlePos(side){
+      const {x,y,w,h} = this.rect;
+      const off = this.rotateHandleOffset * this._k();
+      const local = { x: x+w/2, y: side < 0 ? y - off : y + h + off };
+      return { local, screen: this._toScreen(local) };
     }
+    // Kama kitufe cha juu kingetoka nje ya canvas (sahihi iko juu kabisa), kiweke chini.
+    _pickRotSide(){
+      const m = this.handleSize*0.9*this._k(), W = this.canvas.width, H = this.canvas.height;
+      const ok = (p) => p.x>=m && p.x<=W-m && p.y>=m && p.y<=H-m;
+      if (ok(this._rotateHandlePos(-1).screen)) return -1;
+      if (ok(this._rotateHandlePos(1).screen)) return 1;
+      return -1;
+    }
+    _curRotSide(){ return this.dragMode === 'rotate' ? this.rotSide : this._pickRotSide(); }
+    _hitRotateHandle(p){
+      if (!this.rotatable) return false;
+      const rp = this._rotateHandlePos(this._curRotSide()).screen;
+      return Math.hypot(p.x-rp.x, p.y-rp.y) < this.handleSize*1.5*this._k();
+    }
+    // ----- pembe na pande -----
     _hitHandle(pRaw){
-      const p = this._toUnrotated(pRaw, this.rect);
-      const hs = this.handleSize;
-      const corners = this._corners();
-      for (const key in corners){
-        const c = corners[key];
-        if (Math.abs(p.x-c.x) < hs && Math.abs(p.y-c.y) < hs) return key;
+      const p = this._toUnrotated(pRaw), k = this._k();
+      const minSide = Math.min(this.rect.w, this.rect.h)/k;
+      const r = clamp(minSide*0.3, 14, this.handleSize*1.4) * k;
+      const cs = this._corners();
+      for (const key in cs){
+        if (Math.abs(p.x-cs[key].x) < r && Math.abs(p.y-cs[key].y) < r) return key;
       }
       return null;
     }
-    _hitRotateHandle(pRaw){
-      if (!this.rotatable) return false;
-      const p = this._toUnrotated(pRaw, this.rect);
-      const rp = this._rotateHandlePos();
-      const d = Math.hypot(p.x-rp.x, p.y-rp.y);
-      return d < this.handleSize*0.9;
+    _hitEdge(pRaw){
+      if (!this.edgeHandles) return null;
+      const p = this._toUnrotated(pRaw), k = this._k();
+      const {x,y,w,h} = this.rect;
+      const band = clamp(Math.min(w,h)/k*0.3, 10, 22) * k;
+      const d = { n:Math.abs(p.y-y), s:Math.abs(p.y-(y+h)), w:Math.abs(p.x-x), e:Math.abs(p.x-(x+w)) };
+      let best = null, bd = band;
+      if (p.x > x-band && p.x < x+w+band){
+        if (d.n < bd){ best='n'; bd=d.n; }
+        if (d.s < bd){ best='s'; bd=d.s; }
+      }
+      if (p.y > y-band && p.y < y+h+band){
+        if (d.w < bd){ best='w'; bd=d.w; }
+        if (d.e < bd){ best='e'; bd=d.e; }
+      }
+      return best;
     }
     _inside(pRaw){
-      const p = this._toUnrotated(pRaw, this.rect);
+      const p = this._toUnrotated(pRaw);
       const {x,y,w,h} = this.rect;
       return p.x>=x && p.x<=x+w && p.y>=y && p.y<=y+h;
     }
+    _hitAny(p){
+      return this._hitRotateHandle(p) || !!this._hitHandle(p) || !!this._hitEdge(p) || this._inside(p);
+    }
     _hoverOrMove(e){
       if (this.dragMode) return;
-      const p = this._pos(e);
-      if (this._hitRotateHandle(p)){ this.canvas.style.cursor = 'grab'; return; }
+      const p = this._pos(e), st = this.canvas.style;
+      if (this._hitRotateHandle(p)){ st.cursor = 'grab'; return; }
       const h = this._hitHandle(p);
-      this.canvas.style.cursor = h ? (h==='nw'||h==='se' ? 'nwse-resize' : 'nesw-resize')
-        : (this._inside(p) ? 'move' : 'crosshair');
+      if (h){ st.cursor = (h==='nw'||h==='se') ? 'nwse-resize' : 'nesw-resize'; return; }
+      const ed = this._hitEdge(p);
+      if (ed){ st.cursor = (ed==='n'||ed==='s') ? 'ns-resize' : 'ew-resize'; return; }
+      st.cursor = this._inside(p) ? 'move' : 'crosshair';
     }
     _down(e){
-      this.canvas.setPointerCapture(e.pointerId);
       const p = this._pos(e);
       if (this._hitRotateHandle(p)){
         this.dragMode = 'rotate';
-        this.rotateCenter = { x: this.rect.x+this.rect.w/2, y: this.rect.y+this.rect.h/2 };
+        this.rotSide = this._pickRotSide();
+        this.rotateCenter = this._center();
         this.rotateStartAngle = Math.atan2(p.y-this.rotateCenter.y, p.x-this.rotateCenter.x);
         this.rotationStart = this.rect.rotation || 0;
-        e.preventDefault();
-        return;
-      }
-      const h = this._hitHandle(p);
-      if (h){
-        this.dragMode = 'resize';
-        this.dragHandle = h;
-        const opp = { nw:'se', ne:'sw', sw:'ne', se:'nw' }[h];
-        this.fixedPoint = this._corners()[opp];
-        this.resizeRotation = this.rect.rotation || 0;
-        this.resizeCenter = { x: this.rect.x+this.rect.w/2, y: this.rect.y+this.rect.h/2 };
-      } else if (this._inside(p)){
-        this.dragMode = 'move';
-        this.dragStart = p;
-        this.rectStart = Object.assign({}, this.rect);
       } else {
-        // anza sanduku jipya kutoka mahali alipobonyeza
-        this.dragMode = 'resize';
-        this.dragHandle = 'se';
-        this.fixedPoint = p;
-        this.rect = {x:p.x, y:p.y, w:1, h:1, rotation:0};
+        const h = this._hitHandle(p);
+        const ed = h ? null : this._hitEdge(p);
+        if (h){
+          this.dragMode = 'resize';
+          this.dragHandle = h;
+          const opp = { nw:'se', ne:'sw', sw:'ne', se:'nw' }[h];
+          this.resizeRotation = this.rect.rotation || 0;
+          this.fixedPoint = this._toScreen(this._corners()[opp]); // pembe isiyoburutwa (nafasi ya skrini)
+        } else if (ed){
+          this.dragMode = 'edge';
+          this.dragEdge = ed;
+          this.edgeStart = Object.assign({}, this.rect);
+        } else if (this._inside(p)){
+          this.dragMode = 'move';
+          this.dragStart = p;
+          this.rectStart = Object.assign({}, this.rect);
+        } else if (e.pointerType !== 'touch'){
+          // panya/kalamu: anza sanduku jipya kutoka mahali alipobonyeza
+          this.dragMode = 'resize';
+          this.dragHandle = 'se';
+          this.resizeRotation = 0;
+          this.fixedPoint = p;
+          this.rect = {x:p.x, y:p.y, w:1, h:1, rotation:0};
+        } else {
+          return; // kidole nje ya fremu: acha ukurasa u-scroll
+        }
       }
+      try { this.canvas.setPointerCapture(e.pointerId); } catch(_){}
       e.preventDefault();
     }
     _move(e){
@@ -621,10 +718,9 @@
         this.rect.x = clamp(this.rectStart.x + dx, 0, Math.max(0,this.canvas.width - this.rect.w));
         this.rect.y = clamp(this.rectStart.y + dy, 0, Math.max(0,this.canvas.height - this.rect.h));
       } else if (this.dragMode === 'resize'){
-        // Fanya resize kwa kutumia sehemu iliyorudishwa "kabla ya rotation"
-        // (rotation haibadiliki wakati wa resize), kisha rudisha rotation ile ile.
-        const pUnrot = this._toUnrotated(p, { x:this.resizeCenter.x-1, y:this.resizeCenter.y-1, w:2, h:2, rotation:this.resizeRotation });
-        this._resize(pUnrot);
+        this._resize(p);
+      } else if (this.dragMode === 'edge'){
+        this._edge(p);
       } else if (this.dragMode === 'rotate'){
         const angle = Math.atan2(p.y-this.rotateCenter.y, p.x-this.rotateCenter.x);
         let rotation = this.rotationStart + (angle - this.rotateStartAngle);
@@ -637,28 +733,41 @@
       this.draw();
       this.onChange(this.rect);
     }
+    // Pembe iliyo kinyume (fixedPoint, nafasi ya skrini) inabaki pale pale hata sanduku
+    // likiwa limezungushwa; ukubwa unapimwa kwenye mihimili ya sanduku lenyewe.
     _resize(p){
-      // Sanduku hukua/kupungua likiwa limeshikilia "fixedPoint" (pembe ya
-      // kinyume na ile inayoburutwa) — hii inafanya ukubwa kubadilika
-      // sahihi hata wakati uwiano wa pande (aspect) unadumishwa.
-      let w = Math.abs(p.x - this.fixedPoint.x);
-      let h = Math.abs(p.y - this.fixedPoint.y);
-      if (this.maintainAspect) h = w / this.aspect;
+      const a = this.resizeRotation || 0;
+      const d = this._rot({x:p.x-this.fixedPoint.x, y:p.y-this.fixedPoint.y}, {x:0,y:0}, -a);
+      let w = Math.abs(d.x), h = Math.abs(d.y);
+      let sx = d.x < 0 ? -1 : 1, sy = d.y < 0 ? -1 : 1;
+      if (this.maintainAspect){
+        h = w / this.aspect;
+        sy = this.dragHandle.indexOf('n') >= 0 ? -1 : 1;
+      }
       w = Math.max(w, this.minSize);
       h = Math.max(h, this.minSize);
-      const x = p.x < this.fixedPoint.x ? this.fixedPoint.x - w : this.fixedPoint.x;
-      const y = p.y < this.fixedPoint.y ? this.fixedPoint.y - h : this.fixedPoint.y;
-      this.rect = {
-        x: clamp(x, 0, Math.max(0,this.canvas.width - w)),
-        y: clamp(y, 0, Math.max(0,this.canvas.height - h)),
-        w, h,
-        rotation: this.resizeRotation || 0
-      };
+      const off = this._rot({x:sx*w/2, y:sy*h/2}, {x:0,y:0}, a);
+      let x = this.fixedPoint.x + off.x - w/2;
+      let y = this.fixedPoint.y + off.y - h/2;
+      if (!a){
+        x = clamp(x, 0, Math.max(0,this.canvas.width - w));
+        y = clamp(y, 0, Math.max(0,this.canvas.height - h));
+      }
+      this.rect = { x, y, w, h, rotation: a };
+    }
+    _edge(p){
+      const s = this.edgeStart, min = this.minSize, e = this.dragEdge;
+      let {x,y,w,h} = s;
+      if (e==='e') w = clamp(p.x - s.x, min, Math.max(min, this.canvas.width - s.x));
+      if (e==='w'){ const r = s.x+s.w; x = clamp(p.x, 0, r-min); w = r-x; }
+      if (e==='s') h = clamp(p.y - s.y, min, Math.max(min, this.canvas.height - s.y));
+      if (e==='n'){ const b = s.y+s.h; y = clamp(p.y, 0, b-min); h = b-y; }
+      this.rect = { x, y, w, h, rotation: 0 };
     }
     _up(){ this.dragMode = null; }
     setRect(r){ this.rect = Object.assign({rotation:0}, r); this.draw(); }
     draw(){
-      const ctx = this.ctx;
+      const ctx = this.ctx, k = this._k();
       ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
       this.drawBackground(ctx);
       const {x,y,w,h} = this.rect;
@@ -676,22 +785,37 @@
       ctx.rotate(rotation);
       ctx.translate(-cx,-cy);
       if (this.overlayDraw) this.overlayDraw(ctx, this.rect);
-      ctx.strokeStyle = '#2B4C8C';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x,y,w,h);
-      ctx.fillStyle = '#2B4C8C';
-      const hs = this.handleSize*0.6;
-      [[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(([hx,hy])=>{
-        ctx.fillRect(hx-hs/2, hy-hs/2, hs, hs);
-      });
+      // fremu nene: mstari mweupe nje + bluu ndani ili ionekane kwenye picha yoyote
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = (this.frameWidth+2)*k; ctx.strokeRect(x,y,w,h);
+      ctx.strokeStyle = '#2B4C8C'; ctx.lineWidth = this.frameWidth*k; ctx.strokeRect(x,y,w,h);
+      const box = (bx,by,bw,bh)=>{
+        ctx.fillStyle = '#fff'; ctx.fillRect(bx-bw/2-k, by-bh/2-k, bw+2*k, bh+2*k);
+        ctx.fillStyle = '#2B4C8C'; ctx.fillRect(bx-bw/2, by-bh/2, bw, bh);
+      };
+      const hs = this.handleSize*k;
+      [[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(([hx,hy])=> box(hx,hy,hs,hs));
+      if (this.edgeHandles){
+        const L = hs*1.4, T = hs*0.42;
+        box(x+w/2, y, L, T); box(x+w/2, y+h, L, T);
+        box(x, y+h/2, T, L); box(x+w, y+h/2, T, L);
+      }
       if (this.rotatable){
-        const rp = this._rotateHandlePos();
-        ctx.strokeStyle = '#2B4C8C';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(x+w/2, y); ctx.lineTo(rp.x, rp.y); ctx.stroke();
-        ctx.beginPath(); ctx.arc(rp.x, rp.y, this.handleSize*0.55, 0, Math.PI*2);
-        ctx.fillStyle = '#fff'; ctx.fill();
-        ctx.lineWidth = 2; ctx.stroke();
+        const side = this._curRotSide();
+        const rp = this._rotateHandlePos(side).local;
+        ctx.strokeStyle = '#2B4C8C'; ctx.lineWidth = 2*k;
+        ctx.beginPath(); ctx.moveTo(x+w/2, side<0 ? y : y+h); ctx.lineTo(rp.x, rp.y); ctx.stroke();
+        const r = this.handleSize*0.8*k;
+        ctx.beginPath(); ctx.arc(rp.x, rp.y, r, 0, Math.PI*2);
+        ctx.fillStyle = '#2B4C8C'; ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5*k; ctx.stroke();
+        // ikoni ya mshale wa kuzunguka
+        const ir = r*0.5;
+        ctx.lineWidth = 2*k; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(rp.x, rp.y, ir, -Math.PI*0.1, Math.PI*1.5); ctx.stroke();
+        const ex = rp.x, ey = rp.y - ir;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.moveTo(ex+ir*0.6, ey); ctx.lineTo(ex, ey-ir*0.5); ctx.lineTo(ex, ey+ir*0.5); ctx.closePath(); ctx.fill();
       }
       ctx.restore();
     }
@@ -840,46 +964,77 @@
   $('cameraInput').addEventListener('change', (e)=>{ if (e.target.files[0]) loadImageFile(e.target.files[0]); });
   $('uploadInput').addEventListener('change', (e)=>{ if (e.target.files[0]) loadImageFile(e.target.files[0]); });
 
+  let cropView = null;       // eneo la picha (pixel za picha halisi) linaloonyeshwa kwenye canvas
+  let cropWhole = false;     // true = karatasi nzima, false = imekuzwa kwenye sahihi
+
+  function fullView(){ return { x:0, y:0, w:originalImage.naturalWidth, h:originalImage.naturalHeight }; }
+  // Eneo dogo linalozunguka sahihi (pamoja na nafasi kidogo pembeni ya kurekebisha fremu)
+  function zoomedView(box){
+    const W = originalImage.naturalWidth, H = originalImage.naturalHeight;
+    const w = Math.min(W, Math.max(box.w*2.2, W*0.3));
+    const h = Math.min(H, Math.max(box.h*2.2, H*0.15));
+    const cx = box.x+box.w/2, cy = box.y+box.h/2;
+    return { x: clamp(cx-w/2, 0, W-w), y: clamp(cy-h/2, 0, H-h), w, h };
+  }
+  function setupCropCanvas(view, rectImg){
+    cropView = view;
+    const canvas = $('cropCanvas');
+    const avail = Math.max(240, $('s1-crop').clientWidth || 320);
+    const maxH = Math.max(200, window.innerHeight*0.55);
+    const dispW = Math.min(avail, 560, maxH*view.w/view.h);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.max(50, Math.round(Math.min(view.w, dispW*dpr)));
+    canvas.height = Math.max(50, Math.round(canvas.width*view.h/view.w));
+    canvas.style.width = Math.round(dispW)+'px';
+    const k = canvas.width/view.w; // pixel za canvas kwa kila pixel ya picha halisi
+    const drawBg = (ctx) => ctx.drawImage(originalImage, view.x,view.y,view.w,view.h, 0,0, canvas.width,canvas.height);
+    const rect = { x:(rectImg.x-view.x)*k, y:(rectImg.y-view.y)*k, w:rectImg.w*k, h:rectImg.h*k };
+    if (cropEditor) cropEditor.destroy();
+    cropEditor = new RectEditor(canvas, drawBg, { initialRect:rect, dimOutside:true, edgeHandles:true });
+    cropEditor.draw();
+  }
+  // Fremu ya sasa kwa pixel za picha halisi
+  function currentCropRectImg(){
+    const c = $('cropCanvas'), s = cropView.w/c.width, r = cropEditor.rect;
+    return { x:cropView.x+r.x*s, y:cropView.y+r.y*s, w:r.w*s, h:r.h*s };
+  }
+  function updateToggleBtn(){
+    $('btnToggleView').textContent = cropWhole ? '🎯 Kuza kwenye sahihi' : '🔍 Onyesha karatasi nzima';
+  }
+
   function showCropUI(){
     $('s1-upload').style.display = 'none';
     $('s1-preview').style.display = 'none';
     $('s1-crop').style.display = 'block';
 
-    const canvas = $('cropCanvas');
-    const maxW = 700;
-    const scale = Math.min(1, maxW / originalImage.naturalWidth);
-    canvas.width = Math.round(originalImage.naturalWidth * scale);
-    canvas.height = Math.round(originalImage.naturalHeight * scale);
-
-    const drawBg = (ctx) => ctx.drawImage(originalImage, 0,0, canvas.width, canvas.height);
-
-    let initialRect = { x: canvas.width*0.25, y: canvas.height*0.4, w: canvas.width*0.5, h: canvas.height*0.2 };
-    const suggestion = detectSignatureBox(originalImage);
-    if (suggestion){
-      initialRect = {
-        x: suggestion.fx*canvas.width, y: suggestion.fy*canvas.height,
-        w: suggestion.fw*canvas.width, h: suggestion.fh*canvas.height
-      };
-    }
-
-    cropEditor = new RectEditor(canvas, drawBg, { initialRect, dimOutside:true });
-    cropEditor.draw();
+    const W = originalImage.naturalWidth, H = originalImage.naturalHeight;
+    const sg = detectSignatureBox(originalImage);
+    const rectImg = sg ? { x:sg.fx*W, y:sg.fy*H, w:sg.fw*W, h:sg.fh*H }
+                       : { x:W*0.25, y:H*0.4, w:W*0.5, h:H*0.2 };
+    cropWhole = !sg;
+    setupCropCanvas(cropWhole ? fullView() : zoomedView(rectImg), rectImg);
+    updateToggleBtn();
   }
+  $('btnToggleView').addEventListener('click', ()=>{
+    if (!cropEditor) return;
+    const r = currentCropRectImg();
+    cropWhole = !cropWhole;
+    setupCropCanvas(cropWhole ? fullView() : zoomedView(r), r);
+    updateToggleBtn();
+  });
 
   $('btnRetakeImg').addEventListener('click', ()=>{
     $('s1-crop').style.display = 'none';
     $('s1-upload').style.display = 'block';
     originalImage = null;
+    if (cropEditor){ cropEditor.destroy(); cropEditor = null; }
     $('cameraInput').value = ''; $('uploadInput').value = '';
   });
 
   function extractSignature(){
-    const rect = cropEditor.rect;
-    const canvas = $('cropCanvas');
-    const scaleBack = originalImage.naturalWidth / canvas.width;
-
-    const sx = Math.round(rect.x*scaleBack), sy = Math.round(rect.y*scaleBack);
-    const sw = Math.round(rect.w*scaleBack), sh = Math.round(rect.h*scaleBack);
+    const r = currentCropRectImg();
+    const sx = Math.round(r.x), sy = Math.round(r.y);
+    const sw = Math.max(1, Math.round(r.w)), sh = Math.max(1, Math.round(r.h));
 
     const crop = document.createElement('canvas');
     crop.width = sw; crop.height = sh;
@@ -1037,6 +1192,7 @@
     const drawBg = (ctx) => ctx.drawImage(bgCanvas, 0, 0);
     const overlayDraw = (ctx, rect) => ctx.drawImage(sigImageEl, rect.x, rect.y, rect.w, rect.h);
 
+    if (placeEditor) placeEditor.destroy();
     placeEditor = new RectEditor(canvas, drawBg, {
       initialRect, dimOutside:false, overlayDraw, maintainAspect:true, aspect, rotatable:true
     });
