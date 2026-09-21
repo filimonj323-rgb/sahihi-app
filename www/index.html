@@ -201,7 +201,7 @@
     display:flex; align-items:flex-start; gap:14px; padding:12px 16px;
     border-bottom:1px solid var(--paper-line); background:var(--panel); flex-wrap:wrap; flex-shrink:0;
   }
-  .place-toolbar-title{ flex:1; min-width:180px; }
+  .place-toolbar-title{ flex:1; min-width:120px; }
   .place-toolbar-title h2{ margin:0; font-size:16px; }
   .place-toolbar-title .sub{ margin:2px 0 0; font-size:12.5px; }
   .place-toolbar .btn-row{ margin-top:0; flex-shrink:0; }
@@ -212,9 +212,35 @@
   }
   .place-stage .canvas-frame{ max-width:100%; max-height:100%; }
   .place-stage canvas{ width:auto; height:auto; max-width:100%; max-height:100%; }
-  #downloadStatus{ padding:0 16px 14px; flex-shrink:0; }
+  .place-add{ display:flex; gap:8px; align-items:center; width:100%; }
+  .place-add button.btn{ padding:8px 12px; font-size:13px; flex-shrink:0; }
+  .chips{ display:flex; gap:8px; overflow-x:auto; flex:1; padding:2px 0; }
+  .chip{
+    flex-shrink:0; display:flex; align-items:center; gap:6px; border:1px solid var(--pen); border-radius:8px;
+    background:var(--pen-soft); padding:4px 8px; cursor:pointer; font:inherit; font-size:12px; color:var(--pen-dark); font-weight:600;
+  }
+  .chip img{ height:26px; width:auto; max-width:64px; border-radius:3px; background:#fff; object-fit:contain; }
+  .chip:active{ background:#fff; }
+  .place-nav{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; width:100%; }
+  .place-nav button.btn{ padding:8px 12px; font-size:13px; }
+  .place-nav select{
+    padding:8px 10px; border:1px solid var(--paper-line); border-radius:var(--radius);
+    background:var(--panel); font:inherit; font-size:13px; color:var(--ink); max-width:46vw;
+  }
+  .modal-back{ position:fixed; inset:0; z-index:200; background:rgba(20,24,30,.5); display:none; align-items:center; justify-content:center; padding:18px; }
+  .modal-card{ background:var(--panel); border:1px solid var(--paper-line); border-radius:14px; padding:20px; width:100%; max-width:460px; max-height:88vh; overflow:auto; }
+  .modal-card h3{ margin:0 0 4px; }
+  .modal-card .sub{ margin:0 0 10px; font-size:13px; }
+  .modal-card .btn-row{ margin-top:12px; }
+  .range-row{ display:flex; gap:8px; margin-top:12px; }
+  .range-row input{ flex:1; min-width:0; padding:9px 10px; border:1px solid var(--paper-line); border-radius:var(--radius); font:inherit; font-size:14px; background:#fff; color:var(--ink); }
+  .pick-grid{ display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 4px; }
+  .pick{ display:flex; align-items:center; gap:6px; border:1px solid var(--paper-line); border-radius:8px; padding:7px 10px; font-size:13px; cursor:pointer; background:var(--paper); }
+  .pick input{ accent-color:var(--pen); }
+  .pick .pk-badge{ font-size:11px; color:var(--good); font-weight:700; }
   @media (max-width:720px){
     .place-toolbar{ padding:10px 12px; }
+    .place-toolbar-title .sub{ display:none; }
   }
 
   @media (max-width:720px){
@@ -228,6 +254,29 @@
 <body>
 
 <!-- SKRINI YA MALIPO / UFUNGUZI — inafichwa mara tu kodi sahihi ikiwekwa -->
+<div class="modal-back" id="dlModal">
+  <div class="modal-card">
+    <h3>Pakua / Tenganisha PDF</h3>
+    <p class="sub" id="dlSummary"></p>
+    <div class="btn-row" style="margin-top:6px;">
+      <button class="btn ghost" id="dlAll" type="button">Kurasa zote</button>
+      <button class="btn ghost" id="dlSigned" type="button">Zilizosainiwa tu</button>
+      <button class="btn ghost" id="dlNone" type="button">Hakuna</button>
+    </div>
+    <div class="range-row">
+      <input type="text" id="dlRange" placeholder="Andika kurasa, mf. 1-3, 5" autocomplete="off" />
+      <button class="btn ghost" id="dlRangeSet" type="button">Chagua</button>
+    </div>
+    <div class="pick-grid" id="dlPages"></div>
+    <div id="dlStatus"></div>
+    <button class="btn ghost" id="dlZip" type="button" style="width:100%; margin-top:10px;">📦 Kila ukurasa faili lake (ZIP)</button>
+    <div class="btn-row">
+      <button class="btn ghost" id="dlCancel" type="button">Funga</button>
+      <button class="btn primary" id="dlGo" type="button">⬇ Pakua</button>
+    </div>
+  </div>
+</div>
+
 <div class="lock-gate" id="lockGate">
   <div class="lock-card">
     <h1>Sahihi</h1>
@@ -262,6 +311,10 @@
       <!-- STEP 1 -->
       <section class="step active" id="step1">
         <div class="panel">
+          <div class="hint blue" id="backToPlaceBar" style="display:none;">
+            Unaongeza sahihi/muhuri mpya kwenye PDF yako. Ukishachomoa, itawekwa moja kwa moja.
+            <div class="btn-row" style="margin-top:8px;"><button class="btn ghost" id="btnCancelAdd" type="button">← Rudi kwenye PDF</button></div>
+          </div>
           <h2>Chomoa sahihi kwenye karatasi</h2>
           <p class="sub">Piga picha au pakia picha ya karatasi nzima yenye sahihi. Baadaye utachagua eneo la sahihi kwenye picha hiyo.</p>
 
@@ -285,6 +338,7 @@
               <label>Ukali wa kuondoa background (kama sahihi haionekani vizuri, sogeza)</label>
               <input type="range" id="thresholdSlider" min="-60" max="60" value="0" />
             </div>
+            <label class="checkline"><input type="checkbox" id="stampMode" /> 🔵 Hii ni muhuri — chukua rangi ya muhuri tu (acha maandishi meusi ya karatasi)</label>
             <label class="checkline"><input type="checkbox" id="forceBlack" /> Geuza wino kuwa mweusi (badala ya rangi ya kalamu halisi)</label>
             <div class="btn-row">
               <button class="btn ghost" id="btnRetakeImg">↺ Picha nyingine</button>
@@ -307,7 +361,7 @@
       <section class="step" id="step2">
         <div class="panel">
           <h2>Chagua PDF na ukurasa</h2>
-          <p class="sub">Fungua faili la PDF, kisha chagua ukurasa unaotaka kuweka sahihi.</p>
+          <p class="sub">Fungua faili la PDF, kisha chagua ukurasa wa kuanzia. Baadaye unaweza kuhamia kurasa nyingine na kuweka sahihi zaidi ya moja kabla ya kupakua.</p>
           <div class="drop-row">
             <label class="file-btn">📄 Fungua PDF
               <input type="file" accept="application/pdf" id="pdfInput" />
@@ -317,6 +371,7 @@
           <div class="thumbs" id="thumbs"></div>
           <div class="btn-row">
             <button class="btn ghost" id="btnBackTo1">← Rudi</button>
+            <button class="btn ghost" id="btnSplit" disabled>✂️ Toa kurasa / Tenganisha</button>
             <button class="btn primary" id="btnToStep3" disabled>Endelea →</button>
           </div>
         </div>
@@ -328,18 +383,25 @@
           <div class="place-toolbar">
             <button class="btn ghost" id="btnBackTo2">← Rudi</button>
             <div class="place-toolbar-title">
-              <h2>Weka sahihi kwenye ukurasa</h2>
-              <p class="sub">Buruta sahihi mahali unapoitaka, tumia pembe kuipima ukubwa, na tumia kitufe cha kuzungusha (mduara wa bluu wenye mshale) juu ya sahihi kuizungusha kama imepinda. Gusa nje ya sahihi kuficha fremu; gusa sahihi tena kuirudisha.</p>
+              <h2>Weka sahihi / muhuri</h2>
+              <p class="sub">Gusa kuchagua na kuburuta · pembe = ukubwa · mduara = kuzungusha · gusa nje kuficha fremu</p>
             </div>
-            <div class="btn-row">
-              <button class="btn ghost" id="btnStraighten">⟲ Nyoosha</button>
-              <button class="btn primary" id="btnDownload">⬇ Pakua PDF Iliyosainiwa</button>
+            <button class="btn primary" id="btnDownload">💾 Pakua</button>
+            <div class="place-nav">
+              <button class="btn ghost" id="btnPrevPage" type="button">◀</button>
+              <select id="pageJump"></select>
+              <button class="btn ghost" id="btnNextPage" type="button">▶</button>
+              <button class="btn ghost" id="btnDeleteSig" type="button">🗑 Futa</button>
+              <button class="btn ghost" id="btnStraighten" type="button">⟲ Nyoosha</button>
+            </div>
+            <div class="place-add">
+              <button class="btn ghost" id="btnNewSig" type="button">＋ Mpya</button>
+              <div class="chips" id="sigChips"></div>
             </div>
           </div>
           <div class="place-stage">
             <div class="canvas-frame"><canvas id="placeCanvas"></canvas></div>
           </div>
-          <div id="downloadStatus"></div>
         </div>
       </section>
     </main>
@@ -523,7 +585,9 @@
   }
   checkForUpdate();
 
+  let returnToPlace = false; // true = tunachomoa sahihi/muhuri mpya tukitokea hatua ya 3 (PDF)
   function setStep(n){
+    if (n !== 1){ returnToPlace = false; $('backToPlaceBar').style.display = 'none'; }
     document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
     $('step'+n).classList.add('active');
     document.querySelectorAll('.step-link').forEach(el=>{
@@ -570,6 +634,8 @@
       this.edgeHandles = !!opts.edgeHandles && !this.maintainAspect;
       this.autoHideFrame = !!opts.autoHideFrame; // gusa nje = ficha fremu, gusa sahihi = irudishe
       this.frameVisible = true;
+      this.enabled = opts.enabled !== false;     // false = hakuna sahihi iliyochaguliwa (ukurasa tupu)
+      this.onTapOutside = opts.onTapOutside || null; // (p) => true kama imeshughulikiwa (mf. kuchagua sahihi nyingine)
       this.onChange = opts.onChange || function(){};
       this.dragMode = null;
       this.rotSide = -1; // -1 = kitufe cha kuzungusha juu ya sanduku, 1 = chini
@@ -670,12 +736,14 @@
       return p.x>=x && p.x<=x+w && p.y>=y && p.y<=y+h;
     }
     _hitAny(p){
+      if (!this.enabled) return false;
       if (!this.frameVisible) return this._inside(p);
       return this._hitRotateHandle(p) || !!this._hitHandle(p) || !!this._hitEdge(p) || this._inside(p);
     }
     _hoverOrMove(e){
       if (this.dragMode) return;
       const p = this._pos(e), st = this.canvas.style;
+      if (!this.enabled){ st.cursor = 'default'; return; }
       if (!this.frameVisible){ st.cursor = this._inside(p) ? 'pointer' : 'default'; return; }
       if (this._hitRotateHandle(p)){ st.cursor = 'grab'; return; }
       const h = this._hitHandle(p);
@@ -686,8 +754,15 @@
     }
     _down(e){
       const p = this._pos(e);
+      if (!this.enabled){
+        if (this.onTapOutside && this.onTapOutside(p)) e.preventDefault();
+        return;
+      }
       if (!this.frameVisible){
-        if (!this._inside(p)) return; // fremu imefichwa: gusa nje hakubadilishi kitu
+        if (!this._inside(p)){
+          if (this.onTapOutside && this.onTapOutside(p)) e.preventDefault();
+          return; // fremu imefichwa: gusa nje hakubadilishi kitu
+        }
         this.frameVisible = true;     // gusa sahihi = rudisha fremu (na uweze kuiburuta mara moja)
         this.dragMode = 'move';
         this.dragStart = p;
@@ -721,6 +796,7 @@
           this.dragStart = p;
           this.rectStart = Object.assign({}, this.rect);
         } else if (this.autoHideFrame){
+          if (this.onTapOutside && this.onTapOutside(p)){ e.preventDefault(); return; }
           this.frameVisible = false; // gusa nje ya sahihi = ficha fremu
           this.draw();
           return;
@@ -794,10 +870,12 @@
     }
     _up(){ this.dragMode = null; }
     setRect(r){ this.rect = Object.assign({rotation:0}, r); this.draw(); }
+    setEnabled(b){ this.enabled = !!b; this.dragMode = null; this.draw(); }
     draw(){
       const ctx = this.ctx, k = this._k();
       ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
       this.drawBackground(ctx);
+      if (!this.enabled) return;
       const {x,y,w,h} = this.rect;
       const rotation = this.rect.rotation || 0;
       const cx = x+w/2, cy = y+h/2;
@@ -980,6 +1058,40 @@
     }
   }
 
+  // MUHURI: muhuri huwa na rangi (bluu/nyekundu/zambarau) wakati maandishi yaliyoprintiwa ni meusi/kijivu.
+  // Kwa hiyo tunachukua pixel zenye RANGI tu, na kuacha nyeusi/kijivu (maandishi ya karatasi).
+  function applyStampMode(data, w, h, offset){
+    const N = w*h, R = new Float32Array(N), G = new Float32Array(N), B = new Float32Array(N);
+    for (let i=0,p=0; p<N; i+=4,p++){ R[p]=data[i]; G[p]=data[i+1]; B[p]=data[i+2]; }
+    // sawazisha mwanga na "white balance" kila rangi kivyake (karatasi = nyeupe kweli, hata kwenye kivuli)
+    const bgR = estimateBackground(R,w,h), bgG = estimateBackground(G,w,h), bgB = estimateBackground(B,w,h);
+    const chroma = new Float32Array(N);
+    for (let p=0; p<N; p++){
+      const r = Math.min(255, R[p]*255/bgR[p]), g = Math.min(255, G[p]*255/bgG[p]), b = Math.min(255, B[p]*255/bgB[p]);
+      R[p]=r; G[p]=g; B[p]=b;
+      chroma[p] = Math.max(r,g,b) - Math.min(r,g,b);
+    }
+    boxBlur3(chroma, w, h);
+    // kizingiti kinategemea ukali wa rangi ya muhuri wenyewe (99% ya juu)
+    const hist = new Uint32Array(256);
+    for (let p=0; p<N; p++) hist[Math.min(255, chroma[p]|0)]++;
+    let acc = 0, p99 = 0; const target = N*0.99;
+    for (let t=0; t<256; t++){ acc += hist[t]; if (acc >= target){ p99 = t; break; } }
+    const t0 = clamp(0.3*p99 - offset*0.4, 8, 70);
+    const soft = clamp(t0, 18, 45);
+    for (let i=0,p=0; p<N; i+=4,p++){
+      const gate = clamp((chroma[p]-t0)/soft, 0, 1);
+      if (gate <= 0){ data[i+3] = 0; continue; }
+      const r = R[p], g = G[p], b = B[p], mn = Math.min(r,g,b);
+      const a0 = Math.max(0.05, 1 - mn/255); // kiasi cha wino (kwa kudhani wino una angalau chaneli moja karibu na 0)
+      data[i+3] = clamp(a0*1.3, 0, 1) * gate * 255;
+      // toa "weupe" uliochanganyika ili kingo zisiwe nyepesi/zenye ukungu
+      data[i]   = clamp((r-mn)/a0, 0, 255);
+      data[i+1] = clamp((g-mn)/a0, 0, 255);
+      data[i+2] = clamp((b-mn)/a0, 0, 255);
+    }
+  }
+
   // Hupata sanduku bora la "ink" kwenye picha nzima (kadirio la eneo la sahihi)
   function detectSignatureBox(img){
     const gridW = 300;
@@ -1074,6 +1186,7 @@
   let cropEditor = null;
   let extractedCanvas = null;    // canvas ya mwisho (sahihi, background imeondolewa)
   let extractedDataURL = null;
+  let extractedKind = 'Sahihi';
 
   function loadImageFile(file){
     const url = URL.createObjectURL(file);
@@ -1171,22 +1284,26 @@
 
     const imgData = cctx.getImageData(0,0,sw,sh);
     const data = imgData.data;
-    // Sawazisha mwanga (ondoa kivuli/giza) kabla ya kuamua nini ni wino na nini ni karatasi
-    const { n, bg } = flatField(imgData);
-    boxBlur3(n, sw, sh); // punguza chembechembe za kelele za picha ya giza
     const offset = Number($('thresholdSlider').value);
-    const threshold = clamp(otsuThreshold(n) + offset, 40, 240);
-    const forceBlack = $('forceBlack').checked;
-    const soft = clamp(threshold*0.35, 20, 50); // upana wa ukingo laini (anti-alias)
+    if ($('stampMode').checked){
+      applyStampMode(data, sw, sh, offset);
+    } else {
+      // Sawazisha mwanga (ondoa kivuli/giza) kabla ya kuamua nini ni wino na nini ni karatasi
+      const { n, bg } = flatField(imgData);
+      boxBlur3(n, sw, sh); // punguza chembechembe za kelele za picha ya giza
+      const threshold = clamp(otsuThreshold(n) + offset, 40, 240);
+      const forceBlack = $('forceBlack').checked;
+      const soft = clamp(threshold*0.35, 20, 50); // upana wa ukingo laini (anti-alias)
 
-    for (let i=0,p=0; i<data.length; i+=4,p++){
-      const v = n[p];
-      if (v >= threshold){ data[i+3] = 0; continue; }
-      data[i+3] = clamp(mapRange(v, threshold, threshold-soft, 0, 255), 0, 255);
-      if (forceBlack){ data[i]=18; data[i+1]=20; data[i+2]=26; }
-      else {
-        const f = 255/bg[p]; // rudisha rangi ya kalamu kwenye mwanga wa kawaida
-        data[i] = Math.min(255, data[i]*f); data[i+1] = Math.min(255, data[i+1]*f); data[i+2] = Math.min(255, data[i+2]*f);
+      for (let i=0,p=0; i<data.length; i+=4,p++){
+        const v = n[p];
+        if (v >= threshold){ data[i+3] = 0; continue; }
+        data[i+3] = clamp(mapRange(v, threshold, threshold-soft, 0, 255), 0, 255);
+        if (forceBlack){ data[i]=18; data[i+1]=20; data[i+2]=26; }
+        else {
+          const f = 255/bg[p]; // rudisha rangi ya kalamu kwenye mwanga wa kawaida
+          data[i] = Math.min(255, data[i]*f); data[i+1] = Math.min(255, data[i+1]*f); data[i+2] = Math.min(255, data[i+2]*f);
+        }
       }
     }
     removeSpecks(data, sw, sh, Math.max(6, Math.round(sw*sh*0.00003)));
@@ -1194,6 +1311,7 @@
 
     extractedCanvas = crop;
     extractedDataURL = crop.toDataURL('image/png');
+    extractedKind = $('stampMode').checked ? 'Muhuri' : 'Sahihi';
 
     const preview = $('previewCanvas');
     preview.width = sw; preview.height = sh;
@@ -1205,13 +1323,25 @@
   $('btnExtract').addEventListener('click', extractSignature);
   $('thresholdSlider').addEventListener('change', ()=>{ if ($('s1-preview').style.display!=='none') extractSignature(); });
   $('forceBlack').addEventListener('change', ()=>{ if ($('s1-preview').style.display!=='none') extractSignature(); });
+  $('stampMode').addEventListener('change', ()=>{
+    $('forceBlack').disabled = $('stampMode').checked; // muhuri unabaki na rangi yake
+    if ($('s1-preview').style.display!=='none') extractSignature();
+  });
 
   $('btnRedoCrop').addEventListener('click', ()=>{
     $('s1-preview').style.display = 'none';
     $('s1-crop').style.display = 'block';
   });
 
-  $('btnUseSignature').addEventListener('click', ()=>{
+  $('btnUseSignature').addEventListener('click', async ()=>{
+    registerSigItem(); // ihifadhiwe kwenye orodha ya "Weka hapa" (hatua ya 3)
+    if (returnToPlace && pdfDoc){
+      // Tulikuja kutoka hatua ya 3: rudi kwenye PDF na uweke hii mpya mara moja
+      unlockStepLink(3);
+      setStep(3);
+      await addPlacement(extractedDataURL);
+      return;
+    }
     unlockStepLink(2);
     setStep(2);
   });
@@ -1230,7 +1360,8 @@
     if (!file) return;
     $('pdfStatus').innerHTML = '<div class="hint blue">Inapakia PDF...</div>';
     $('thumbs').innerHTML = '';
-    $('btnToStep3').disabled = true;
+    $('btnToStep3').disabled = true; $('btnSplit').disabled = true;
+    placements = {}; activeId = null; selectedPageNum = null; // PDF mpya = anza upya
     try {
       pdfBytesOriginal = await file.arrayBuffer();
       const loadingTask = pdfjsLib.getDocument({ data: pdfBytesOriginal.slice(0) });
@@ -1267,6 +1398,7 @@
       });
       container.appendChild(wrap);
     }
+    $('btnSplit').disabled = false;
     if (pdfDoc.numPages === 1){
       container.firstChild.classList.add('selected');
       selectedPageNum = 1;
@@ -1278,122 +1410,366 @@
   $('btnToStep3').addEventListener('click', async ()=>{
     unlockStepLink(3);
     setStep(3);
-    await showPlacementUI();
+    await showPlacementUI(true);
   });
 
   // ============================================================
-  // STEP 3 — weka sahihi kwenye ukurasa na upakue
+  // STEP 3 — weka sahihi kwenye kurasa/sehemu nyingi, kisha upakue mara moja
+  // Kila sahihi iliyowekwa inahifadhiwa kama sehemu ya upana/urefu wa ukurasa
+  // (0..1), hivyo inabaki sahihi hata ukihamia ukurasa mwingine na kurudi.
   // ============================================================
   let placeEditor = null;
-  let pageRenderScale = 1; // uwiano kati ya pixel za canvas na "points" za PDF (1 point = pageRenderScale px)
-  let sigImageEl = null;
+  const imgCache = new Map();   // src -> Image
+  let placements = {};          // ukurasa -> [ {id, src, fx, fy, fw, fh, rot} ]
+  let activeId = null;          // sahihi inayohaririwa sasa (kwenye ukurasa wa sasa)
+  let nextPlacementId = 1;
+  let placeCW = 1, placeCH = 1; // ukubwa wa canvas ya ukurasa unaoonyeshwa
+  let renderToken = 0;
 
-  async function showPlacementUI(){
+  function loadImg(src){
+    if (imgCache.has(src)) return Promise.resolve(imgCache.get(src));
+    return new Promise((resolve)=>{
+      const im = new Image();
+      im.onload = ()=>{ imgCache.set(src, im); resolve(im); };
+      im.src = src;
+    });
+  }
+  const pageList = () => placements[selectedPageNum] || (placements[selectedPageNum] = []);
+  const activePl = () => pageList().find(pl => pl.id === activeId) || null;
+  const plToRect = (pl) => ({ x:pl.fx*placeCW, y:pl.fy*placeCH, w:pl.fw*placeCW, h:pl.fh*placeCH, rotation:pl.rot||0 });
+  function drawPlacement(ctx, pl){
+    const im = imgCache.get(pl.src); if (!im) return;
+    const r = plToRect(pl);
+    ctx.save();
+    ctx.translate(r.x+r.w/2, r.y+r.h/2);
+    ctx.rotate(r.rotation);
+    ctx.drawImage(im, -r.w/2, -r.h/2, r.w, r.h);
+    ctx.restore();
+  }
+  function hitPlacement(pl, p){
+    const r = plToRect(pl), cx = r.x+r.w/2, cy = r.y+r.h/2, a = -r.rotation;
+    const dx = p.x-cx, dy = p.y-cy;
+    const x = cx + dx*Math.cos(a) - dy*Math.sin(a), y = cy + dx*Math.sin(a) + dy*Math.cos(a);
+    return x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h;
+  }
+  function onPlaceChange(rect){
+    const pl = activePl(); if (!pl) return;
+    pl.fx = rect.x/placeCW; pl.fy = rect.y/placeCH; pl.fw = rect.w/placeCW; pl.fh = rect.h/placeCH; pl.rot = rect.rotation||0;
+  }
+  // Gusa sahihi nyingine (isiyo hai) = ichague
+  function onPlaceTapOutside(p){
+    const list = pageList();
+    for (let i=list.length-1; i>=0; i--){
+      if (list[i].id !== activeId && hitPlacement(list[i], p)){ selectPlacement(list[i].id); return true; }
+    }
+    return false;
+  }
+  function selectPlacement(id){
+    activeId = id;
+    const list = pageList(), i = list.findIndex(pl => pl.id === id);
+    if (i >= 0){ const pl = list.splice(i,1)[0]; list.push(pl); } // iliyochaguliwa iwe juu ya zote
+    const pl = activePl();
+    if (placeEditor){
+      if (!pl) placeEditor.setEnabled(false);
+      else {
+        placeEditor.aspect = (pl.fw*placeCW)/(pl.fh*placeCH);
+        placeEditor.enabled = true;
+        placeEditor.frameVisible = true;
+        placeEditor.setRect(plToRect(pl));
+      }
+    }
+    refreshPageJump();
+  }
+  async function addPlacement(src){
+    src = src || extractedDataURL;
+    if (!src || !placeEditor) return;
+    const im = await loadImg(src);
+    const aspect = im.naturalWidth/im.naturalHeight;
+    const list = pageList();
+    const wpx = Math.min(placeCW*0.35, 220);
+    const fw = wpx/placeCW, fh = (wpx/aspect)/placeCH, n = list.length % 4;
+    const pl = {
+      id: nextPlacementId++, src, fw, fh, rot: 0,
+      fx: clamp(0.55 - n*0.04, 0, Math.max(0,1-fw)), fy: clamp(0.75 - n*0.09, 0, Math.max(0,1-fh))
+    };
+    list.push(pl);
+    selectPlacement(pl.id);
+  }
+  function refreshPageJump(){
+    const sel = $('pageJump'); sel.innerHTML = '';
+    for (let i=1; i<=pdfDoc.numPages; i++){
+      const c = (placements[i]||[]).length;
+      const o = document.createElement('option');
+      o.value = i; o.textContent = 'Ukurasa ' + i + ' / ' + pdfDoc.numPages + (c ? '  ✍ ' + c : '');
+      sel.appendChild(o);
+    }
+    sel.value = String(selectedPageNum);
+    $('btnPrevPage').disabled = selectedPageNum <= 1;
+    $('btnNextPage').disabled = selectedPageNum >= pdfDoc.numPages;
+    $('btnDeleteSig').disabled = !activePl();
+    $('btnStraighten').disabled = !activePl();
+  }
+
+  async function showPlacementUI(autoAdd){
+    const token = ++renderToken;
     const page = await pdfDoc.getPage(selectedPageNum);
     const unscaled = page.getViewport({ scale: 1 });
-    // Tumia nafasi kubwa ya skrini iliyopo (stage ni full-screen sasa) badala
-    // ya upana mdogo uliokuwa umewekwa awali — hii inafanya ukurasa na eneo
-    // la kuweka sahihi ionekane vizuri zaidi na iwe rahisi kuiburuta sahihi.
+    // Tumia nafasi kubwa ya skrini iliyopo ili ukurasa uonekane vizuri
     const toolbar = document.querySelector('.place-toolbar');
     const toolbarH = toolbar ? toolbar.getBoundingClientRect().height : 90;
     const maxW = Math.max(320, window.innerWidth - 36);
     const maxH = Math.max(320, window.innerHeight - toolbarH - 36);
     const baseScale = Math.min(maxW / unscaled.width, maxH / unscaled.height);
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    pageRenderScale = Math.min(3, baseScale * dpr);
-    const viewport = page.getViewport({ scale: pageRenderScale });
+    const viewport = page.getViewport({ scale: Math.min(3, baseScale * dpr) });
 
     const bgCanvas = document.createElement('canvas');
     bgCanvas.width = viewport.width; bgCanvas.height = viewport.height;
     await page.render({ canvasContext: bgCanvas.getContext('2d'), viewport }).promise;
-
-    sigImageEl = new Image();
-    await new Promise((resolve)=>{ sigImageEl.onload = resolve; sigImageEl.src = extractedDataURL; });
+    await Promise.all(pageList().map(pl => loadImg(pl.src)));
+    if (token !== renderToken) return; // mtumiaji ameshahamia ukurasa mwingine
 
     const canvas = $('placeCanvas');
     canvas.width = viewport.width; canvas.height = viewport.height;
+    placeCW = canvas.width; placeCH = canvas.height;
 
-    const aspect = sigImageEl.naturalWidth / sigImageEl.naturalHeight;
-    const initW = Math.min(viewport.width*0.35, 220);
-    const initialRect = {
-      x: viewport.width*0.55, y: viewport.height*0.75,
-      w: initW, h: initW/aspect, rotation: 0
+    const list = pageList();
+    if (!list.some(pl => pl.id === activeId)) activeId = list.length ? list[list.length-1].id : null;
+    const pl = activePl();
+
+    const drawBg = (ctx) => {
+      ctx.drawImage(bgCanvas, 0, 0);
+      pageList().forEach(o => { if (o.id !== activeId) drawPlacement(ctx, o); }); // sahihi nyingine (zilizowekwa tayari)
     };
-
-    const drawBg = (ctx) => ctx.drawImage(bgCanvas, 0, 0);
-    const overlayDraw = (ctx, rect) => ctx.drawImage(sigImageEl, rect.x, rect.y, rect.w, rect.h);
+    const overlayDraw = (ctx, rect) => {
+      const a = activePl(), im = a && imgCache.get(a.src);
+      if (im) ctx.drawImage(im, rect.x, rect.y, rect.w, rect.h);
+    };
 
     if (placeEditor) placeEditor.destroy();
     placeEditor = new RectEditor(canvas, drawBg, {
-      initialRect, dimOutside:false, overlayDraw, maintainAspect:true, aspect, rotatable:true, autoHideFrame:true
+      initialRect: pl ? plToRect(pl) : {x:0,y:0,w:10,h:10},
+      enabled: !!pl, dimOutside:false, overlayDraw, maintainAspect:true,
+      aspect: pl ? (pl.fw*placeCW)/(pl.fh*placeCH) : 1,
+      rotatable:true, autoHideFrame:true,
+      onTapOutside: onPlaceTapOutside, onChange: onPlaceChange
     });
     placeEditor.draw();
+    refreshPageJump();
+    if (autoAdd && !list.length) await addPlacement(); // ukurasa wa kwanza: sahihi tayari kuburutwa
   }
 
+  async function gotoPage(n){
+    if (!pdfDoc || n < 1 || n > pdfDoc.numPages || n === selectedPageNum) return;
+    selectedPageNum = n; activeId = null;
+    await showPlacementUI(false);
+  }
+  $('btnPrevPage').addEventListener('click', ()=> gotoPage(selectedPageNum-1));
+  $('btnNextPage').addEventListener('click', ()=> gotoPage(selectedPageNum+1));
+  $('pageJump').addEventListener('change', (e)=> gotoPage(Number(e.target.value)));
+  // ---- Orodha ya sahihi/muhuri ulizochomoa: gusa moja kuiweka kwenye ukurasa wa sasa ----
+  let sigLibrary = []; // { src, kind, label }
+  function registerSigItem(){
+    if (!extractedDataURL) return;
+    if (!sigLibrary.some(x => x.src === extractedDataURL)){
+      const kind = extractedKind, n = sigLibrary.filter(x => x.kind === kind).length + 1;
+      sigLibrary.push({ src: extractedDataURL, kind, label: kind + ' ' + n });
+    }
+    renderSigChips();
+  }
+  function renderSigChips(){
+    const box = $('sigChips'); box.innerHTML = '';
+    sigLibrary.forEach((it)=>{
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip';
+      b.innerHTML = '<img alt=""><span></span>';
+      b.querySelector('img').src = it.src;
+      b.querySelector('span').textContent = it.label;
+      b.addEventListener('click', ()=> addPlacement(it.src));
+      box.appendChild(b);
+    });
+  }
+  $('btnNewSig').addEventListener('click', ()=>{
+    returnToPlace = true;
+    $('s1-crop').style.display = 'none'; $('s1-preview').style.display = 'none'; $('s1-upload').style.display = 'block';
+    originalImage = null;
+    if (cropEditor){ cropEditor.destroy(); cropEditor = null; }
+    $('cameraInput').value = ''; $('uploadInput').value = '';
+    setStep(1);
+    returnToPlace = true; // setStep(1) haifuti; hakikisha tunakumbuka
+    $('backToPlaceBar').style.display = 'block';
+  });
+  $('btnCancelAdd').addEventListener('click', ()=>{ setStep(3); });
+  $('btnDeleteSig').addEventListener('click', ()=>{
+    const list = pageList(), i = list.findIndex(pl => pl.id === activeId);
+    if (i < 0) return;
+    list.splice(i,1);
+    selectPlacement(list.length ? list[list.length-1].id : null);
+  });
   $('btnStraighten').addEventListener('click', ()=>{
-    if (!placeEditor) return;
+    if (!placeEditor || !activePl()) return;
     placeEditor.rect.rotation = 0;
     placeEditor.frameVisible = true;
     placeEditor.draw();
+    onPlaceChange(placeEditor.rect);
   });
-
   $('btnBackTo2').addEventListener('click', ()=> setStep(2));
 
-  $('btnDownload').addEventListener('click', async ()=>{
-    $('downloadStatus').innerHTML = '<div class="hint blue">Inatengeneza PDF...</div>';
-    try {
-      const { PDFDocument, degrees } = PDFLib;
-      const pdfLibDoc = await PDFDocument.load(pdfBytesOriginal);
-      const pngBytes = await (await fetch(extractedDataURL)).arrayBuffer();
-      const pngImage = await pdfLibDoc.embedPng(pngBytes);
-
-      const pages = pdfLibDoc.getPages();
-      const page = pages[selectedPageNum-1];
-      const pageHeightPts = page.getHeight();
-
-      const rect = placeEditor.rect;
-      const rotation = rect.rotation || 0; // radians, kuzunguka kitovu cha box (kama kwenye canvas)
-
-      // canvas px -> PDF points: kwa sababu tuli-render kwa pageRenderScale,
-      // point 1 ya PDF = pageRenderScale px kwenye canvas.
-      const pdfW = rect.w / pageRenderScale;
-      const pdfH = rect.h / pageRenderScale;
-
-      // pdf-lib huzungusha picha ukishikilia pembe yake ya chini-kushoto (x,y),
-      // wakati sisi kwenye canvas tunazungusha kuhusu KITOVU cha box. Kwa hiyo
-      // tunahesabu pembe hiyo (nw ya canvas isiyozungushwa = chini-kushoto kwa
-      // maana ya PDF) ILIVYO baada ya kuzungushwa kuhusu kitovu, kisha
-      // tunatumia sehemu hiyo kama "anchor" ya pdf-lib — angle ya pdf-lib
-      // (counter-clockwise, y-juu) ni hasi ya angle ya canvas (clockwise, y-chini).
-      const cx = rect.x + rect.w/2, cy = rect.y + rect.h/2;
-      const blX = rect.x, blY = rect.y + rect.h; // "chini-kushoto" ya sahihi (nw ya canvas)
-      const dx = blX - cx, dy = blY - cy;
-      const cos = Math.cos(rotation), sin = Math.sin(rotation);
-      const blRotX = cx + dx*cos - dy*sin;
-      const blRotY = cy + dx*sin + dy*cos;
-
-      const pdfXFromLeft = blRotX / pageRenderScale;
-      const pdfYFromBottom = pageHeightPts - (blRotY / pageRenderScale);
-      const rotateDeg = -(rotation * 180/Math.PI);
-
-      page.drawImage(pngImage, {
-        x: pdfXFromLeft, y: pdfYFromBottom, width: pdfW, height: pdfH,
-        rotate: degrees(rotateDeg)
+  // ---------- Pakua: chagua kurasa unazotaka (au zote) ----------
+  const dlSel = new Set();
+  const signedPages = () => Object.keys(placements).map(Number).filter(n => placements[n].length).sort((a,b)=>a-b);
+  function updateDlUi(){
+    const total = Object.values(placements).reduce((t,l)=> t + l.length, 0);
+    $('dlSummary').textContent = total
+      ? 'Umeweka sahihi ' + total + ' kwenye kurasa ' + signedPages().length + '. Chagua kurasa za kupakua:'
+      : 'Chagua kurasa unazotaka kupakua:';
+    $('dlPages').querySelectorAll('input').forEach(cb => { cb.checked = dlSel.has(Number(cb.value)); });
+    $('dlGo').textContent = '⬇ Pakua (kurasa ' + dlSel.size + ')';
+    $('dlGo').disabled = dlSel.size === 0;
+    $('dlZip').disabled = dlSel.size < 2;
+  }
+  function openDownloadModal(mode){
+    if (!pdfDoc) return;
+    const box = $('dlPages'); box.innerHTML = '';
+    dlSel.clear();
+    for (let i=1; i<=pdfDoc.numPages; i++){
+      if (mode !== 'split') dlSel.add(i);
+      const c = (placements[i]||[]).length;
+      const lb = document.createElement('label');
+      lb.className = 'pick';
+      lb.innerHTML = '<input type="checkbox" value="' + i + '" /> Uk. ' + i + (c ? ' <span class="pk-badge">✍' + c + '</span>' : '');
+      lb.querySelector('input').addEventListener('change', (e)=>{
+        if (e.target.checked) dlSel.add(i); else dlSel.delete(i);
+        updateDlUi();
       });
-
-      const outBytes = await pdfLibDoc.save();
-      await deliverPdf(outBytes, 'imesainiwa-' + Date.now() + '.pdf');
-      $('downloadStatus').innerHTML = '<div class="hint" style="background:var(--good-soft);border-color:#BEDBC9;color:var(--good);">✅ PDF iko tayari.</div>';
-    } catch (err){
-      $('downloadStatus').innerHTML = '<div class="hint err">Imeshindwa: '+err.message+'</div>';
+      box.appendChild(lb);
     }
-  });
+    if (mode === 'split' && selectedPageNum) dlSel.add(selectedPageNum); // anza na ukurasa uliouchagua
+    $('dlRange').value = '';
+    $('dlStatus').innerHTML = '';
+    updateDlUi();
+    $('dlModal').style.display = 'flex';
+  }
+  $('btnDownload').addEventListener('click', ()=> openDownloadModal('sign'));
+  $('btnSplit').addEventListener('click', ()=> openDownloadModal('split'));
+  // "1-3, 5" -> kurasa 1,2,3,5
+  function parseRange(str, max){
+    const out = new Set();
+    str.split(/[,\s]+/).filter(Boolean).forEach((tok)=>{
+      const m = tok.match(/^(\d+)(?:-(\d+))?$/); if (!m) return;
+      let a = +m[1], b = m[2] ? +m[2] : a;
+      if (a > b){ const t = a; a = b; b = t; }
+      for (let i=Math.max(1,a); i<=Math.min(max,b); i++) out.add(i);
+    });
+    return out;
+  }
+  function applyRange(){
+    const set = parseRange($('dlRange').value, pdfDoc.numPages);
+    dlSel.clear(); set.forEach(n => dlSel.add(n));
+    updateDlUi();
+  }
+  $('dlRangeSet').addEventListener('click', applyRange);
+  $('dlRange').addEventListener('keydown', (e)=>{ if (e.key === 'Enter'){ e.preventDefault(); applyRange(); } });
+  $('dlCancel').addEventListener('click', ()=>{ $('dlModal').style.display = 'none'; });
+  $('dlModal').addEventListener('click', (e)=>{ if (e.target === $('dlModal')) $('dlModal').style.display = 'none'; });
+  $('dlAll').addEventListener('click', ()=>{ dlSel.clear(); for (let i=1; i<=pdfDoc.numPages; i++) dlSel.add(i); updateDlUi(); });
+  $('dlSigned').addEventListener('click', ()=>{ dlSel.clear(); signedPages().forEach(n => dlSel.add(n)); updateDlUi(); });
+  $('dlNone').addEventListener('click', ()=>{ dlSel.clear(); updateDlUi(); });
+
+  // Weka sahihi zote kwenye nakala ya PDF ya awali (bado kurasa zote)
+  async function getSignedDoc(){
+    const { PDFDocument, degrees } = PDFLib;
+    const doc = await PDFDocument.load(pdfBytesOriginal);
+    const pages = doc.getPages();
+    const embedded = new Map();
+    for (const key of Object.keys(placements)){
+      const page = pages[Number(key)-1];
+      if (!page) continue;
+      const W = page.getWidth(), H = page.getHeight();
+      for (const pl of placements[key]){
+        let img = embedded.get(pl.src);
+        if (!img){
+          img = await doc.embedPng(await (await fetch(pl.src)).arrayBuffer());
+          embedded.set(pl.src, img);
+        }
+        const w = pl.fw*W, h = pl.fh*H, x = pl.fx*W, y = pl.fy*H, rot = pl.rot || 0; // (x,y) = juu-kushoto, y ikishuka
+        // pdf-lib huzungusha kuhusu pembe ya chini-kushoto; sisi tunazungusha kuhusu kitovu.
+        // Kwa hiyo tunahesabu pembe hiyo baada ya kuzungushwa kuhusu kitovu.
+        const cx = x + w/2, cy = y + h/2, dx = x - cx, dy = (y + h) - cy;
+        const cos = Math.cos(rot), sin = Math.sin(rot);
+        const blX = cx + dx*cos - dy*sin, blY = cy + dx*sin + dy*cos;
+        page.drawImage(img, {
+          x: blX, y: H - blY, width: w, height: h,
+          rotate: degrees(-(rot*180/Math.PI))
+        });
+      }
+    }
+    return doc;
+  }
+  // PDF mpya yenye kurasa zilizochaguliwa tu (copyPages — faili halibebi kurasa zisizochaguliwa)
+  async function pdfWithPages(signedDoc, pageNums){
+    if (pageNums.length === signedDoc.getPageCount()) return signedDoc.save(); // zote: baki na faili kamili
+    const nd = await PDFLib.PDFDocument.create();
+    const copied = await nd.copyPages(signedDoc, pageNums.map(n => n-1));
+    copied.forEach(pg => nd.addPage(pg));
+    return nd.save();
+  }
+  // ZIP rahisi (bila compression) ili kupakua faili nyingi kwa mara moja
+  const CRC_TABLE = (()=>{ const t = new Uint32Array(256); for (let n=0;n<256;n++){ let c=n; for (let k=0;k<8;k++) c = (c&1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1); t[n]=c>>>0; } return t; })();
+  function crc32(u8){ let c = 0xFFFFFFFF; for (let i=0;i<u8.length;i++) c = CRC_TABLE[(c ^ u8[i]) & 255] ^ (c>>>8); return (c ^ 0xFFFFFFFF)>>>0; }
+  function makeZip(files){ // files: [{name, data:Uint8Array}]
+    const enc = new TextEncoder(), parts = [], central = [];
+    const u16 = (v)=> new Uint8Array([v&255, (v>>8)&255]);
+    const u32 = (v)=> new Uint8Array([v&255, (v>>8)&255, (v>>16)&255, (v>>>24)&255]);
+    let offset = 0;
+    const push = (arr, list)=> arr.forEach(a => list.push(a));
+    for (const f of files){
+      const name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
+      const local = [u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(crc), u32(size), u32(size), u16(name.length), u16(0), name];
+      push(local, parts); parts.push(f.data);
+      push([u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(crc), u32(size), u32(size),
+            u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset), name], central);
+      offset += 30 + name.length + size;
+    }
+    const cdSize = central.reduce((t,a)=> t + a.length, 0);
+    const end = [u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(cdSize), u32(offset), u16(0)];
+    const all = parts.concat(central, end);
+    const out = new Uint8Array(all.reduce((t,a)=> t + a.length, 0));
+    let pos = 0; all.forEach(a => { out.set(a, pos); pos += a.length; });
+    return out;
+  }
+  const hasPlacements = () => Object.values(placements).some(l => l.length);
+  async function runDownload(kind){
+    ['dlGo','dlZip'].forEach(id => $(id).disabled = true);
+    $('dlStatus').innerHTML = '<div class="hint blue">Inatengeneza faili...</div>';
+    try {
+      const nums = Array.from(dlSel).sort((a,b)=>a-b);
+      const signedDoc = await getSignedDoc();
+      const prefix = hasPlacements() ? 'imesainiwa' : 'kurasa';
+      if (kind === 'zip'){
+        const pad = (n)=> String(n).padStart(String(pdfDoc.numPages).length, '0');
+        const files = [];
+        for (const n of nums){
+          files.push({ name: 'ukurasa-' + pad(n) + '.pdf', data: await pdfWithPages(signedDoc, [n]) });
+        }
+        await deliverPdf(makeZip(files), prefix + '-' + Date.now() + '.zip', 'application/zip');
+      } else {
+        await deliverPdf(await pdfWithPages(signedDoc, nums), prefix + '-' + Date.now() + '.pdf');
+      }
+      $('dlStatus').innerHTML = '<div class="hint" style="background:var(--good-soft);border-color:#BEDBC9;color:var(--good);">✅ Faili liko tayari.</div>';
+    } catch (err){
+      $('dlStatus').innerHTML = '<div class="hint err">Imeshindwa: ' + err.message + '</div>';
+    }
+    updateDlUi();
+  }
+  $('dlGo').addEventListener('click', ()=> runDownload('pdf'));
+  $('dlZip').addEventListener('click', ()=> runDownload('zip'));
 
   // Kwenye app ya Android (Capacitor), <a download> ya kivinjari haifanyi kazi
   // ndani ya WebView — hivyo tunatumia Filesystem+Share za Capacitor kuhifadhi
   // faili kisha kufungua "Share" ya Android (mtumiaji anachagua Save/WhatsApp/Drive).
   // Kwenye kivinjari cha kawaida (siyo app), inarudi kwenye njia ya zamani.
-  async function deliverPdf(bytes, filename){
+  async function deliverPdf(bytes, filename, mime){
     const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
     const plugins = window.Capacitor && window.Capacitor.Plugins;
     if (isNative && plugins && plugins.Filesystem){
@@ -1418,7 +1794,7 @@
       return;
     }
     // Kivinjari cha kawaida (siyo app ya Android)
-    const blob = new Blob([bytes], { type:'application/pdf' });
+    const blob = new Blob([bytes], { type: mime || 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename;
